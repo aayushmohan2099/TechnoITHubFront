@@ -30,7 +30,7 @@ const Sidebar = ({ role = "admin" }) => {
         },
         {
             name: "See Employees",
-            path: "/admin/notifications",
+            path: "/admin/employees/list",
             icon: "●",
         },
 

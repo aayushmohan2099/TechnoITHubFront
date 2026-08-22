@@ -6,24 +6,26 @@ import AppBackground from "./pages/AppBackground";
 
 import AdminLayout from "./pages/layouts/AdminLayout";
 import AdminDashboard from "./pages/Admin/Dashboard";
+import AddEmployee from "./pages/Admin/AddEmployee";
+import Employees from "./pages/Admin/Employees";
 
 function App() {
   return (
     <AppBackground>
       <Routes>
 
-        {/* Login */}
+        {/* LOGIN */}
         <Route
           path="/login"
           element={<Login />}
         />
 
-        {/* Admin Layout */}
+        {/* ADMIN */}
         <Route
           path="/admin"
           element={<AdminLayout />}
         >
-          {/* /admin → /admin/dashboard */}
+          {/* /admin */}
           <Route
             index
             element={
@@ -34,14 +36,26 @@ function App() {
             }
           />
 
-          {/* Admin Dashboard */}
+          {/* Dashboard */}
           <Route
             path="dashboard"
             element={<AdminDashboard />}
           />
+
+          {/* Add Employee */}
+          <Route
+            path="employees"
+            element={<AddEmployee />}
+          />
+
+          {/* See Employees */}
+          <Route
+            path="employees/list"
+            element={<Employees />}
+          />
         </Route>
 
-        {/* Any unknown URL → Login */}
+        {/* UNKNOWN ROUTE */}
         <Route
           path="*"
           element={
