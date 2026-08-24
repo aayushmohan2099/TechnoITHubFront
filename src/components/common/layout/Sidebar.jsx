@@ -19,6 +19,11 @@ const Sidebar = ({ role = "admin" }) => {
             icon: "✓",
         },
         {
+            name: "See Tasks",
+            path: "/admin/tasklist",
+            icon: "☷",
+        },
+        {
             name: "Attendance",
             path: "/admin/attendance",
             icon: "▣",

@@ -10,6 +10,8 @@ import AddEmployee from "./pages/Admin/AddEmployee";
 import Employees from "./pages/Admin/Employees";
 import Tasks from "./pages/Admin/Tasks";
 import ResetPassword from "./pages/Admin/ResetPassword";
+import TaskList from "./pages/Admin/TaskList";
+import Attendance from "./pages/Admin/Attendance";
 
 function App() {
   return (
@@ -66,6 +68,14 @@ function App() {
           <Route
             path="reset-password"
             element={<ResetPassword />}
+          />
+          <Route
+            path="tasklist"
+            element={<TaskList />}
+          />
+          <Route
+            path="attendance"
+            element={<Attendance />}
           />
         </Route>
 

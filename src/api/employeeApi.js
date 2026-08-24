@@ -55,3 +55,21 @@ export const resetEmployeePassword = async (employeeId) => {
 
     return response.data;
 };
+
+// Get All Tasks
+export const getAllTasks = async () => {
+    const response = await axiosInstance.get(
+        "api/v1/tasks/admin/manage/"
+    );
+
+    return response.data;
+};
+
+// Attendance History
+export const getAttendanceHistory = async () => {
+    const response = await axiosInstance.get(
+        "api/v1/attendance/admin/history/"
+    );
+
+    return response.data;
+};
