@@ -25,7 +25,7 @@ const Sidebar = ({ role = "admin" }) => {
         },
         {
             name: "Reset Password",
-            path: "/admin/training",
+            path: "/admin/reset-password",
             icon: "◆",
         },
         {

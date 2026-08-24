@@ -1,5 +1,9 @@
 import axiosInstance from "./axiosInstance";
 
+// ===============================
+// CREATE EMPLOYEE
+// ===============================
+
 export const createEmployee = async (employeeData) => {
     const response = await axiosInstance.post(
         "api/v1/accounts/admin/create-employee/",
@@ -8,16 +12,44 @@ export const createEmployee = async (employeeData) => {
 
     return response.data;
 };
-// Get All Employees
-export const getAllEmployees = async () => {
-    const accessToken = localStorage.getItem("access_token");
 
+
+// ===============================
+// GET ALL EMPLOYEES
+// ===============================
+
+export const getAllEmployees = async () => {
     const response = await axiosInstance.get(
-        "api/v1/employees/profiles/",
+        "api/v1/employees/profiles/"
+    );
+
+    return response.data;
+};
+
+
+// ===============================
+// CREATE / ASSIGN TASK
+// ===============================
+
+export const createTask = async (taskData) => {
+    const response = await axiosInstance.post(
+        "api/v1/tasks/admin/manage/",
+        taskData
+    );
+
+    return response.data;
+};
+
+
+// ===============================
+// RESET EMPLOYEE PASSWORD
+// ===============================
+
+export const resetEmployeePassword = async (employeeId) => {
+    const response = await axiosInstance.post(
+        "api/v1/accounts/admin/reset-password/",
         {
-            headers: {
-                Authorization: `Bearer ${accessToken}`,
-            },
+            employee_id: employeeId,
         }
     );
 

@@ -8,6 +8,8 @@ import AdminLayout from "./pages/layouts/AdminLayout";
 import AdminDashboard from "./pages/Admin/Dashboard";
 import AddEmployee from "./pages/Admin/AddEmployee";
 import Employees from "./pages/Admin/Employees";
+import Tasks from "./pages/Admin/Tasks";
+import ResetPassword from "./pages/Admin/ResetPassword";
 
 function App() {
   return (
@@ -25,7 +27,7 @@ function App() {
           path="/admin"
           element={<AdminLayout />}
         >
-          {/* /admin */}
+          {/* /admin → /admin/dashboard */}
           <Route
             index
             element={
@@ -52,6 +54,18 @@ function App() {
           <Route
             path="employees/list"
             element={<Employees />}
+          />
+
+          {/* Assign Task */}
+          <Route
+            path="tasks"
+            element={<Tasks />}
+          />
+
+          {/* Reset Password */}
+          <Route
+            path="reset-password"
+            element={<ResetPassword />}
           />
         </Route>
 
