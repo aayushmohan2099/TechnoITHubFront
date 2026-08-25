@@ -1,5 +1,10 @@
 import axiosInstance from "./axiosInstance";
 
+//==========================================
+//ADMIN APIs
+//=======================================
+
+
 // ===============================
 // CREATE EMPLOYEE
 // ===============================
@@ -69,6 +74,19 @@ export const getAllTasks = async () => {
 export const getAttendanceHistory = async () => {
     const response = await axiosInstance.get(
         "api/v1/attendance/admin/history/"
+    );
+
+    return response.data;
+};
+
+//=====================================
+// EMPLOYEE APIs
+//=====================================
+
+//Employee Attendance
+export const punchAttendance = async () => {
+    const response = await axiosInstance.post(
+        "api/v1/attendance/employee/punch/"
     );
 
     return response.data;

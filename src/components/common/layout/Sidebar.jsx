@@ -49,27 +49,21 @@ const Sidebar = ({ role = "admin" }) => {
             icon: "⌂",
         },
         {
-            name: "My Tasks",
-            path: "/employee/tasks",
-            icon: "✓",
-        },
-        {
             name: "Attendance",
             path: "/employee/attendance",
             icon: "▣",
         },
         {
-            name: "Training",
-            path: "/employee/training",
-            icon: "◆",
+            name: "My Tasks",
+            path: "/employee/tasks",
+            icon: "✓",
         },
         {
-            name: "Notifications",
-            path: "/employee/notifications",
-            icon: "●",
+            name: "Daily Progress",
+            path: "/employee/progress",
+            icon: "↗",
         },
     ];
-
     const menuItems =
         role === "admin"
             ? adminMenuItems

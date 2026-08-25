@@ -1,5 +1,6 @@
 import React from "react";
 import logo from "../../../assets/thlogo.png";
+import ProfileIcon from "../ProfileIcon";
 
 const Header = () => {
     return (
@@ -25,22 +26,8 @@ const Header = () => {
                     </div>
                 </div>
 
-                {/* Right Side */}
-                <div className="flex items-center gap-4">
-                    <div className="hidden text-right sm:block">
-                        <p className="text-sm font-medium text-gray-800">
-                            Welcome
-                        </p>
-
-                        <p className="text-xs text-gray-500">
-                            User
-                        </p>
-                    </div>
-
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-ettm-blue text-sm font-semibold text-white">
-                        U
-                    </div>
-                </div>
+                {/* Profile */}
+                <ProfileIcon />
 
             </div>
         </header>
