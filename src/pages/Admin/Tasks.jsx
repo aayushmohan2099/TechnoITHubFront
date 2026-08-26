@@ -41,7 +41,7 @@ const Tasks = () => {
 
                 const data = await getAllEmployees();
 
-                console.log("Employees:", data);
+                console.log("Employees API Response:", data);
 
                 if (Array.isArray(data)) {
                     setEmployees(data);
@@ -149,9 +149,11 @@ const Tasks = () => {
     // --------------------------------------------------
     const filteredEmployees = employees.filter((employee) => {
         const name = (employee.name || "").toLowerCase();
+
         const employeeId = (
             employee.employee_id || ""
         ).toLowerCase();
+
         const designation = (
             employee.designation || ""
         ).toLowerCase();
@@ -187,11 +189,22 @@ const Tasks = () => {
 
     // --------------------------------------------------
     // Select Employee
+    // IMPORTANT:
+    // assigned_to = employee.user_id
+    // NOT employee.id
     // --------------------------------------------------
     const handleEmployeeSelect = (employee) => {
+        console.log("Selected Employee:", employee);
+        console.log(
+            "Passing user_id to assigned_to:",
+            employee.user_id
+        );
+
         setFormData((prev) => ({
             ...prev,
-            assigned_to: employee.id,
+
+            // IMPORTANT CHANGE
+            assigned_to: employee.user_id,
         }));
 
         setSearchName(employee.name || "");
@@ -226,15 +239,20 @@ const Tasks = () => {
             ...prev,
             assigned_to: "",
         }));
+
+        setShowEmployeeResults(false);
     };
 
     // --------------------------------------------------
     // Selected Employee
+    // IMPORTANT:
+    // Find using user_id because assigned_to
+    // now contains user_id
     // --------------------------------------------------
     const selectedEmployee = employees.find(
         (employee) =>
-            Number(employee.id) ===
-            Number(formData.assigned_to)
+            String(employee.user_id) ===
+            String(formData.assigned_to)
     );
 
     // --------------------------------------------------
@@ -304,20 +322,35 @@ const Tasks = () => {
         try {
             setSubmitting(true);
 
+            // assigned_to contains employee.user_id
             const payload = {
                 title: formData.title.trim(),
-                description: formData.description.trim(),
+
+                description:
+                    formData.description.trim(),
+
                 assigned_to: Number(
                     formData.assigned_to
                 ),
-                start_date: formData.start_date,
-                deadline: formData.deadline,
-                priority: formData.priority,
+
+                start_date:
+                    formData.start_date,
+
+                deadline:
+                    formData.deadline,
+
+                priority:
+                    formData.priority,
             };
 
             console.log(
                 "Task Payload:",
                 payload
+            );
+
+            console.log(
+                "assigned_to user_id:",
+                formData.assigned_to
             );
 
             const response =
@@ -346,6 +379,7 @@ const Tasks = () => {
             setSearchDesignation("");
 
             setErrors({});
+            setShowEmployeeResults(false);
         } catch (error) {
             console.error(
                 "Error creating task:",
@@ -639,7 +673,9 @@ const Tasks = () => {
                                     {/* Result Count */}
                                     <div className="border-b border-gray-100 bg-gray-50 px-4 py-2">
                                         <p className="text-xs font-medium text-gray-500">
-                                            {filteredEmployees.length}{" "}
+                                            {
+                                                filteredEmployees.length
+                                            }{" "}
                                             employee
                                             {filteredEmployees.length !==
                                                 1
@@ -655,7 +691,7 @@ const Tasks = () => {
                                             (employee) => (
                                                 <button
                                                     key={
-                                                        employee.id
+                                                        employee.user_id
                                                     }
                                                     type="button"
                                                     onClick={() =>
@@ -780,8 +816,9 @@ const Tasks = () => {
                                 </button>
                             </div>
 
-                            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-4">
 
+                                {/* NAME */}
                                 <div>
                                     <p className="text-xs text-gray-400">
                                         Name
@@ -794,6 +831,7 @@ const Tasks = () => {
                                     </p>
                                 </div>
 
+                                {/* EMPLOYEE ID */}
                                 <div>
                                     <p className="text-xs text-gray-400">
                                         Employee ID
@@ -806,6 +844,20 @@ const Tasks = () => {
                                     </p>
                                 </div>
 
+                                {/* USER ID */}
+                                <div>
+                                    <p className="text-xs text-gray-400">
+                                        User ID
+                                    </p>
+
+                                    <p className="mt-1 text-sm font-semibold text-gray-800">
+                                        {
+                                            selectedEmployee.user_id
+                                        }
+                                    </p>
+                                </div>
+
+                                {/* DESIGNATION */}
                                 <div>
                                     <p className="text-xs text-gray-400">
                                         Designation
