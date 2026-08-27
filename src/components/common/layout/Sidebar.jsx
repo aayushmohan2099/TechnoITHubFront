@@ -58,11 +58,11 @@ const Sidebar = ({ role = "admin" }) => {
             path: "/employee/tasks",
             icon: "✓",
         },
-        {
-            name: "Daily Progress",
-            path: "/employee/progress",
-            icon: "↗",
-        },
+        // {
+        //     name: "Daily Progress",
+        //     path: "/employee/progress",
+        //     icon: "↗",
+        // },
     ];
     const menuItems =
         role === "admin"

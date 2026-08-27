@@ -23,6 +23,7 @@ import Attendance from "./pages/Admin/Attendance";
 import EmployeeLayout from "./pages/layouts/EmployeeLayout";
 import EmployeeDashboard from "./pages/Employee/EmployeeDashboard";
 import EmployeeAttendance from "./pages/Employee/Attendance";
+import MyTasks from "./pages/Employee/MyTasks";
 
 function App() {
   return (
@@ -136,12 +137,12 @@ function App() {
 
 
           {/* My Tasks - add later */}
-          {/* 
-                    <Route
-                        path="tasks"
-                        element={<MyTasks />}
-                    />
-                    */}
+
+          <Route
+            path="tasks"
+            element={<MyTasks />}
+          />
+
 
           {/* Daily Progress - add later */}
           {/* 

@@ -91,3 +91,28 @@ export const punchAttendance = async () => {
 
     return response.data;
 };
+
+// Employee Tasks
+export const getMyTasks = async () => {
+    const response = await axiosInstance.get(
+        "api/v1/tasks/employee/my-tasks/"
+    );
+
+    return response.data;
+};
+
+// =====================================
+// EMPLOYEE - UPDATE TASK PROGRESS
+// =====================================
+
+export const updateTaskProgress = async (
+    taskId,
+    progressData
+) => {
+    const response = await axiosInstance.post(
+        `api/v1/tasks/employee/my-tasks/${taskId}/update/`,
+        progressData
+    );
+
+    return response.data;
+};
