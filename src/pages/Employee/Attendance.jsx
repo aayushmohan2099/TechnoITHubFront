@@ -1,11 +1,17 @@
 import React, { useEffect, useRef, useState } from "react";
 import { punchAttendance } from "../../api/employeeApi";
 
+// Active punch-in state
 const ATTENDANCE_STORAGE_KEY = "employee_attendance";
+
+// Completed attendance marker
+const ATTENDANCE_COMPLETED_KEY =
+    "attendance_completed_today";
 
 const Attendance = () => {
     // --------------------------------------------------
-    // Get today's date key
+    // Get today's date
+    // YYYY-MM-DD
     // --------------------------------------------------
     const getTodayKey = () => {
         const today = new Date();
@@ -18,51 +24,151 @@ const Attendance = () => {
     };
 
     // --------------------------------------------------
-    // Initial Attendance State
-    // Restore from localStorage if it belongs to today
+    // Check whether THIS employee already completed
+    // attendance today
     // --------------------------------------------------
-    const [attendance, setAttendance] = useState(() => {
-        const savedAttendance = localStorage.getItem(
-            ATTENDANCE_STORAGE_KEY
+    const getCompletedAttendance = () => {
+        const saved = localStorage.getItem(
+            ATTENDANCE_COMPLETED_KEY
         );
 
-        if (savedAttendance) {
-            try {
-                const parsedAttendance =
-                    JSON.parse(savedAttendance);
-
-                // Restore only today's attendance
-                if (
-                    parsedAttendance.date ===
-                    getTodayKey()
-                ) {
-                    return parsedAttendance;
-                }
-
-                // Remove old attendance
-                localStorage.removeItem(
-                    ATTENDANCE_STORAGE_KEY
-                );
-            } catch (error) {
-                console.error(
-                    "Invalid attendance data:",
-                    error
-                );
-
-                localStorage.removeItem(
-                    ATTENDANCE_STORAGE_KEY
-                );
-            }
+        if (!saved) {
+            return null;
         }
 
-        return {
-            date: getTodayKey(),
-            status: "Not Started",
-            punchInTime: null,
-            punchOutTime: null,
-            totalSeconds: 0,
-        };
-    });
+        try {
+            const parsed = JSON.parse(saved);
+
+            const currentEmployeeId =
+                localStorage.getItem(
+                    "employee_id"
+                );
+
+            // ------------------------------------------
+            // Old day's record
+            // Remove automatically
+            // ------------------------------------------
+            if (
+                parsed.date !== getTodayKey()
+            ) {
+                localStorage.removeItem(
+                    ATTENDANCE_COMPLETED_KEY
+                );
+
+                return null;
+            }
+
+            // ------------------------------------------
+            // Same day but another employee
+            // Don't block that employee
+            // ------------------------------------------
+            if (
+                parsed.employee_id !==
+                currentEmployeeId
+            ) {
+                return null;
+            }
+
+            if (parsed.completed === true) {
+                return parsed;
+            }
+
+            return null;
+        } catch (error) {
+            console.error(
+                "Invalid completed attendance data:",
+                error
+            );
+
+            localStorage.removeItem(
+                ATTENDANCE_COMPLETED_KEY
+            );
+
+            return null;
+        }
+    };
+
+    // --------------------------------------------------
+    // Initial Attendance
+    // --------------------------------------------------
+    const [attendance, setAttendance] =
+        useState(() => {
+            // ------------------------------------------
+            // First check if attendance was already
+            // completed today
+            // ------------------------------------------
+            const completedAttendance =
+                getCompletedAttendance();
+
+            if (completedAttendance) {
+                return {
+                    date: getTodayKey(),
+                    status: "Completed",
+
+                    punchInTime:
+                        completedAttendance.punchInTime ||
+                        null,
+
+                    punchOutTime:
+                        completedAttendance.punchOutTime ||
+                        null,
+
+                    totalSeconds: Number(
+                        completedAttendance.totalSeconds ||
+                        0
+                    ),
+                };
+            }
+
+            // ------------------------------------------
+            // Otherwise check active punch-in
+            // ------------------------------------------
+            const savedAttendance =
+                localStorage.getItem(
+                    ATTENDANCE_STORAGE_KEY
+                );
+
+            if (savedAttendance) {
+                try {
+                    const parsedAttendance =
+                        JSON.parse(
+                            savedAttendance
+                        );
+
+                    // Restore only today's
+                    // active attendance
+                    if (
+                        parsedAttendance.date ===
+                        getTodayKey()
+                    ) {
+                        return parsedAttendance;
+                    }
+
+                    // Remove yesterday's
+                    // active attendance
+                    localStorage.removeItem(
+                        ATTENDANCE_STORAGE_KEY
+                    );
+                } catch (error) {
+                    console.error(
+                        "Invalid attendance data:",
+                        error
+                    );
+
+                    localStorage.removeItem(
+                        ATTENDANCE_STORAGE_KEY
+                    );
+                }
+            }
+
+            return {
+                date: getTodayKey(),
+                status: "Not Started",
+                punchInTime: null,
+                punchOutTime: null,
+                totalSeconds: 0,
+            };
+        });
 
     const [elapsedSeconds, setElapsedSeconds] =
         useState(0);
@@ -79,26 +185,51 @@ const Attendance = () => {
     const timerRef = useRef(null);
 
     // --------------------------------------------------
-    // Save Attendance to localStorage
+    // Save ACTIVE attendance
     // --------------------------------------------------
     useEffect(() => {
-        localStorage.setItem(
-            ATTENDANCE_STORAGE_KEY,
-            JSON.stringify(attendance)
-        );
+        // Do not store completed attendance
+        // in the active attendance key.
+        if (
+            attendance.status ===
+            "Currently Working"
+        ) {
+            localStorage.setItem(
+                ATTENDANCE_STORAGE_KEY,
+                JSON.stringify(attendance)
+            );
+        }
+
+        // If state becomes Not Started,
+        // make sure stale active data is gone.
+        if (
+            attendance.status ===
+            "Not Started"
+        ) {
+            localStorage.removeItem(
+                ATTENDANCE_STORAGE_KEY
+            );
+        }
     }, [attendance]);
 
     // --------------------------------------------------
     // Format seconds → HH:MM:SS
     // --------------------------------------------------
     const formatDuration = (seconds) => {
-        const hrs = Math.floor(seconds / 3600);
-
-        const mins = Math.floor(
-            (seconds % 3600) / 60
+        const totalSeconds = Number(
+            seconds || 0
         );
 
-        const secs = seconds % 60;
+        const hrs = Math.floor(
+            totalSeconds / 3600
+        );
+
+        const mins = Math.floor(
+            (totalSeconds % 3600) / 60
+        );
+
+        const secs =
+            totalSeconds % 60;
 
         return [
             String(hrs).padStart(2, "0"),
@@ -115,18 +246,23 @@ const Attendance = () => {
             return "--:--";
         }
 
-        const date = new Date(dateTime);
+        const date = new Date(
+            dateTime
+        );
 
-        return date.toLocaleTimeString("en-IN", {
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-            hour12: true,
-        });
+        return date.toLocaleTimeString(
+            "en-IN",
+            {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                hour12: true,
+            }
+        );
     };
 
     // --------------------------------------------------
-    // Live Working Timer
+    // Live Timer
     // --------------------------------------------------
     useEffect(() => {
         if (
@@ -135,33 +271,40 @@ const Attendance = () => {
             attendance.punchInTime
         ) {
             const updateTimer = () => {
-                const punchIn = new Date(
-                    attendance.punchInTime
-                ).getTime();
+                const punchIn =
+                    new Date(
+                        attendance.punchInTime
+                    ).getTime();
 
                 const now = Date.now();
 
-                const seconds = Math.max(
-                    0,
-                    Math.floor(
-                        (now - punchIn) / 1000
-                    )
-                );
+                const seconds =
+                    Math.max(
+                        0,
+                        Math.floor(
+                            (now - punchIn) /
+                            1000
+                        )
+                    );
 
-                setElapsedSeconds(seconds);
+                setElapsedSeconds(
+                    seconds
+                );
             };
 
-            // Run immediately
             updateTimer();
 
-            // Update every second
-            timerRef.current = setInterval(
-                updateTimer,
-                1000
-            );
+            timerRef.current =
+                setInterval(
+                    updateTimer,
+                    1000
+                );
         } else {
             if (timerRef.current) {
-                clearInterval(timerRef.current);
+                clearInterval(
+                    timerRef.current
+                );
+
                 timerRef.current = null;
             }
 
@@ -171,7 +314,8 @@ const Attendance = () => {
             ) {
                 setElapsedSeconds(
                     Number(
-                        attendance.totalSeconds
+                        attendance.totalSeconds ||
+                        0
                     )
                 );
             } else {
@@ -181,7 +325,10 @@ const Attendance = () => {
 
         return () => {
             if (timerRef.current) {
-                clearInterval(timerRef.current);
+                clearInterval(
+                    timerRef.current
+                );
+
                 timerRef.current = null;
             }
         };
@@ -195,8 +342,23 @@ const Attendance = () => {
     // Punch In / Punch Out
     // --------------------------------------------------
     const handlePunch = async () => {
+        // ------------------------------------------
+        // Extra frontend protection
+        // ------------------------------------------
+        if (
+            attendance.status ===
+            "Completed"
+        ) {
+            setErrorMessage(
+                "Today's attendance has already been completed."
+            );
+
+            return;
+        }
+
         try {
             setLoading(true);
+
             setErrorMessage("");
             setSuccessMessage("");
 
@@ -208,23 +370,30 @@ const Attendance = () => {
                 data
             );
 
-            // ------------------------------------------
+            // ==========================================
             // PUNCH IN
-            // ------------------------------------------
+            // ==========================================
             if (
                 data.status ===
                 "Currently Working"
             ) {
                 const newAttendance = {
                     date: getTodayKey(),
-                    status: "Currently Working",
+
+                    status:
+                        "Currently Working",
+
                     punchInTime:
                         data.punch_in_time,
+
                     punchOutTime: null,
+
                     totalSeconds: 0,
                 };
 
-                setAttendance(newAttendance);
+                setAttendance(
+                    newAttendance
+                );
 
                 localStorage.setItem(
                     ATTENDANCE_STORAGE_KEY,
@@ -243,9 +412,9 @@ const Attendance = () => {
                 return;
             }
 
-            // ------------------------------------------
+            // ==========================================
             // PUNCH OUT
-            // ------------------------------------------
+            // ==========================================
             if (
                 data.punch_out_time &&
                 data.total_seconds !==
@@ -257,25 +426,76 @@ const Attendance = () => {
                 );
 
                 // Stop timer
-                if (timerRef.current) {
+                if (
+                    timerRef.current
+                ) {
                     clearInterval(
                         timerRef.current
                     );
 
-                    timerRef.current = null;
+                    timerRef.current =
+                        null;
                 }
 
-                // Clear attendance storage
+                // --------------------------------------
+                // Get employee ID BEFORE logout
+                // --------------------------------------
+                const employeeId =
+                    localStorage.getItem(
+                        "employee_id"
+                    );
+
+                // --------------------------------------
+                // SAVE COMPLETED ATTENDANCE
+                //
+                // This key MUST survive logout.
+                // --------------------------------------
+                const completedAttendance =
+                {
+                    employee_id:
+                        employeeId,
+
+                    date:
+                        getTodayKey(),
+
+                    completed: true,
+
+                    punchInTime:
+                        data.punch_in_time ||
+                        attendance.punchInTime,
+
+                    punchOutTime:
+                        data.punch_out_time,
+
+                    totalSeconds:
+                        Number(
+                            data.total_seconds
+                        ),
+                };
+
+                localStorage.setItem(
+                    ATTENDANCE_COMPLETED_KEY,
+                    JSON.stringify(
+                        completedAttendance
+                    )
+                );
+
+                // --------------------------------------
+                // Remove active punch-in state
+                // --------------------------------------
                 localStorage.removeItem(
                     ATTENDANCE_STORAGE_KEY
                 );
 
-                // ----------------------------------
-                // CLEAR LOGIN TOKENS
-                // ----------------------------------
-
-                // Use the keys that your login
-                // actually stores.
+                // --------------------------------------
+                // CLEAR LOGIN / SESSION DATA
+                //
+                // Do NOT use:
+                // localStorage.clear()
+                //
+                // because it would also delete
+                // attendance_completed_today
+                // --------------------------------------
                 localStorage.removeItem(
                     "access"
                 );
@@ -292,21 +512,42 @@ const Attendance = () => {
                     "refresh_token"
                 );
 
-                // ----------------------------------
+                localStorage.removeItem(
+                    "role"
+                );
+
+                localStorage.removeItem(
+                    "employee_id"
+                );
+
+                localStorage.removeItem(
+                    "name"
+                );
+
+                localStorage.removeItem(
+                    "profile_picture"
+                );
+
+                localStorage.removeItem(
+                    "must_change_password"
+                );
+
+                // --------------------------------------
                 // LOGOUT
-                // ----------------------------------
+                // --------------------------------------
                 window.location.href =
                     "/login";
 
                 return;
             }
 
-            // ------------------------------------------
-            // UNEXPECTED RESPONSE
-            // ------------------------------------------
+            // ==========================================
+            // Unexpected API response
+            // ==========================================
             setErrorMessage(
                 "Unexpected response from attendance API."
             );
+
         } catch (error) {
             console.error(
                 "Attendance API Error:",
@@ -380,6 +621,7 @@ const Attendance = () => {
 
             {/* PAGE HEADER */}
             <div className="mb-6">
+
                 <h1 className="text-2xl font-semibold text-ettm-blue">
                     Attendance
                 </h1>
@@ -388,6 +630,7 @@ const Attendance = () => {
                     Manage your daily attendance
                     and working hours.
                 </p>
+
             </div>
 
             {/* SUCCESS MESSAGE */}
@@ -411,6 +654,7 @@ const Attendance = () => {
                 <div className="flex flex-col gap-4 border-b border-gray-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
 
                     <div>
+
                         <h2 className="text-lg font-semibold text-gray-800">
                             Today's Attendance
                         </h2>
@@ -419,13 +663,18 @@ const Attendance = () => {
                             {new Date().toLocaleDateString(
                                 "en-IN",
                                 {
-                                    weekday: "long",
-                                    day: "2-digit",
-                                    month: "long",
-                                    year: "numeric",
+                                    weekday:
+                                        "long",
+                                    day:
+                                        "2-digit",
+                                    month:
+                                        "long",
+                                    year:
+                                        "numeric",
                                 }
                             )}
                         </p>
+
                     </div>
 
                     {/* STATUS */}
@@ -436,11 +685,15 @@ const Attendance = () => {
 
                         {attendance.status}
                     </div>
+
                 </div>
 
-                {/* CURRENTLY WORKING */}
+                {/* ======================================
+                    CURRENTLY WORKING
+                ====================================== */}
                 {attendance.status ===
                     "Currently Working" && (
+
                         <div className="py-8 text-center">
 
                             <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
@@ -456,12 +709,17 @@ const Attendance = () => {
                             <p className="mt-3 text-sm text-green-600">
                                 You are currently working
                             </p>
+
                         </div>
+
                     )}
 
-                {/* COMPLETED */}
+                {/* ======================================
+                    COMPLETED
+                ====================================== */}
                 {attendance.status ===
                     "Completed" && (
+
                         <div className="py-8 text-center">
 
                             <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
@@ -474,16 +732,24 @@ const Attendance = () => {
                                 )}
                             </p>
 
-                            <p className="mt-3 text-sm text-blue-600">
-                                Today's attendance is
-                                completed
+                            <p className="mt-3 text-sm font-medium text-blue-600">
+                                Today's attendance is completed
                             </p>
+
+                            <p className="mt-2 text-xs text-gray-400">
+                                You cannot punch in again today.
+                            </p>
+
                         </div>
+
                     )}
 
-                {/* NOT STARTED */}
+                {/* ======================================
+                    NOT STARTED
+                ====================================== */}
                 {attendance.status ===
                     "Not Started" && (
+
                         <div className="py-8 text-center">
 
                             <p className="text-sm text-gray-500">
@@ -492,17 +758,22 @@ const Attendance = () => {
                             </p>
 
                             <p className="mt-2 text-xs text-gray-400">
-                                Click the button below to
-                                start your attendance.
+                                Click the button below
+                                to start your attendance.
                             </p>
+
                         </div>
+
                     )}
 
-                {/* TIMES */}
-                <div className="grid grid-cols-1 gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2">
+                {/* ======================================
+                    TIMES
+                ====================================== */}
+                <div className="grid grid-cols-1 gap-4 border-t border-gray-100 pt-5 sm:grid-cols-3">
 
                     {/* PUNCH IN */}
                     <div className="rounded-lg bg-gray-50 p-4">
+
                         <p className="text-xs font-medium text-gray-400">
                             Punch In
                         </p>
@@ -512,10 +783,27 @@ const Attendance = () => {
                                 attendance.punchInTime
                             )}
                         </p>
+
+                    </div>
+
+                    {/* PUNCH OUT */}
+                    <div className="rounded-lg bg-gray-50 p-4">
+
+                        <p className="text-xs font-medium text-gray-400">
+                            Punch Out
+                        </p>
+
+                        <p className="mt-2 text-lg font-semibold text-gray-800">
+                            {formatTime(
+                                attendance.punchOutTime
+                            )}
+                        </p>
+
                     </div>
 
                     {/* WORKING HOURS */}
                     <div className="rounded-lg bg-gray-50 p-4">
+
                         <p className="text-xs font-medium text-gray-400">
                             Working Hours
                         </p>
@@ -525,18 +813,27 @@ const Attendance = () => {
                                 workingSeconds
                             )}
                         </p>
+
                     </div>
+
                 </div>
 
-                {/* ACTION BUTTON */}
+                {/* ======================================
+                    ACTION BUTTON
+                ====================================== */}
                 <div className="mt-6 flex justify-center">
 
                     {attendance.status !==
                         "Completed" && (
+
                             <button
                                 type="button"
-                                onClick={handlePunch}
-                                disabled={loading}
+                                onClick={
+                                    handlePunch
+                                }
+                                disabled={
+                                    loading
+                                }
                                 className={`rounded-lg px-10 py-3 text-sm font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${attendance.status ===
                                     "Currently Working"
                                     ? "bg-red-600 hover:bg-red-700"
@@ -550,16 +847,22 @@ const Attendance = () => {
                                         ? "Punch Out"
                                         : "Punch In"}
                             </button>
+
                         )}
 
                     {attendance.status ===
                         "Completed" && (
+
                             <div className="rounded-lg bg-blue-50 px-8 py-3 text-sm font-semibold text-blue-700">
                                 ✓ Attendance Completed
                             </div>
+
                         )}
+
                 </div>
+
             </div>
+
         </div>
     );
 };
