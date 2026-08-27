@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+
 import {
     getAllEmployees,
     resetEmployeePassword,
@@ -19,71 +20,108 @@ const ResetPassword = () => {
     const [resetResult, setResetResult] = useState(null);
     const [showModal, setShowModal] = useState(false);
 
-    // ----------------------------------------
-    // Get employees
-    // ----------------------------------------
-    useEffect(() => {
-        const fetchEmployees = async () => {
-            try {
-                setLoadingEmployees(true);
-                setErrorMessage("");
+    // --------------------------------------------------
+    // Fetch Employees
+    // --------------------------------------------------
+    const fetchEmployees = async (searchValue = "") => {
+        try {
+            setLoadingEmployees(true);
+            setErrorMessage("");
 
-                const data = await getAllEmployees();
+            const data = await getAllEmployees({
+                page: 1,
+                search: searchValue.trim(),
+            });
 
-                console.log("Employees:", data);
+            console.log(
+                "Employees Response:",
+                data
+            );
 
-                if (Array.isArray(data)) {
-                    setEmployees(data);
-                } else if (Array.isArray(data?.results)) {
-                    setEmployees(data.results);
-                } else {
-                    setEmployees([]);
-                }
-            } catch (error) {
-                console.error(
-                    "Error fetching employees:",
-                    error
-                );
-
-                setErrorMessage(
-                    error?.response?.data?.detail ||
-                    "Failed to load employees."
-                );
-            } finally {
-                setLoadingEmployees(false);
+            if (Array.isArray(data)) {
+                setEmployees(data);
+            } else if (
+                Array.isArray(data?.results)
+            ) {
+                setEmployees(data.results);
+            } else if (
+                Array.isArray(data?.data)
+            ) {
+                setEmployees(data.data);
+            } else {
+                setEmployees([]);
             }
-        };
+        } catch (error) {
+            console.error(
+                "Error fetching employees:",
+                error
+            );
 
+            setErrorMessage(
+                error?.response?.data?.detail ||
+                "Failed to load employees."
+            );
+
+            setEmployees([]);
+        } finally {
+            setLoadingEmployees(false);
+        }
+    };
+
+    // --------------------------------------------------
+    // Initial Load
+    // --------------------------------------------------
+    useEffect(() => {
         fetchEmployees();
     }, []);
 
-    // ----------------------------------------
-    // Filter employees
-    // ----------------------------------------
-    const filteredEmployees = employees.filter(
-        (employee) => {
-            const searchText =
-                search.toLowerCase().trim();
+    // --------------------------------------------------
+    // Search Employees from Backend
+    // --------------------------------------------------
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            fetchEmployees(search);
+        }, 400);
 
-            return (
-                employee.employee_id
-                    ?.toLowerCase()
-                    .includes(searchText) ||
-                employee.name
-                    ?.toLowerCase()
-                    .includes(searchText)
-            );
-        }
-    );
+        return () => {
+            clearTimeout(timer);
+        };
+    }, [search]);
 
-    // ----------------------------------------
-    // Reset password
-    // ----------------------------------------
+    // --------------------------------------------------
+    // Handle Search Change
+    // --------------------------------------------------
+    const handleSearchChange = (e) => {
+        const value = e.target.value;
+
+        setSearch(value);
+
+        // Clear previous selection
+        setSelectedEmployee("");
+
+        setSuccessMessage("");
+        setErrorMessage("");
+    };
+
+    // --------------------------------------------------
+    // Clear Search
+    // --------------------------------------------------
+    const handleClearSearch = () => {
+        setSearch("");
+        setSelectedEmployee("");
+        setSuccessMessage("");
+        setErrorMessage("");
+    };
+
+    // --------------------------------------------------
+    // Reset Password
+    // --------------------------------------------------
     const handleResetPassword = async () => {
         if (!selectedEmployee) {
             setErrorMessage(
                 "Please select an employee."
             );
+
             return;
         }
 
@@ -119,7 +157,8 @@ const ResetPassword = () => {
                 error?.response?.data;
 
             if (
-                typeof backendError === "string"
+                typeof backendError ===
+                "string"
             ) {
                 setErrorMessage(
                     backendError
@@ -148,9 +187,9 @@ const ResetPassword = () => {
         }
     };
 
-    // ----------------------------------------
-    // Copy password
-    // ----------------------------------------
+    // --------------------------------------------------
+    // Copy Password
+    // --------------------------------------------------
     const handleCopyPassword = async () => {
         if (
             !resetResult?.new_temporary_password
@@ -178,9 +217,9 @@ const ResetPassword = () => {
         }
     };
 
-    // ----------------------------------------
-    // Download credentials
-    // ----------------------------------------
+    // --------------------------------------------------
+    // Download Credentials
+    // --------------------------------------------------
     const handleDownload = () => {
         if (!resetResult) {
             return;
@@ -211,7 +250,8 @@ Please ask the employee to change the temporary password after logging in.
 
         link.href = url;
 
-        link.download = `${resetResult.employee_id}-password-reset.txt`;
+        link.download =
+            `${resetResult.employee_id}-password-reset.txt`;
 
         document.body.appendChild(link);
 
@@ -222,9 +262,9 @@ Please ask the employee to change the temporary password after logging in.
         URL.revokeObjectURL(url);
     };
 
-    // ----------------------------------------
-    // Close modal
-    // ----------------------------------------
+    // --------------------------------------------------
+    // Close Modal
+    // --------------------------------------------------
     const closeModal = () => {
         setShowModal(false);
         setResetResult(null);
@@ -235,22 +275,25 @@ Please ask the employee to change the temporary password after logging in.
 
             {/* Header */}
             <div className="mb-6">
+
                 <h1 className="text-2xl font-semibold text-ettm-blue">
                     Reset Employee Password
                 </h1>
 
                 <p className="mt-1 text-sm text-gray-500">
-                    Select an employee and reset
+                    Search for an employee and reset
                     their password.
                 </p>
+
             </div>
 
             {/* Success */}
-            {successMessage && !showModal && (
-                <div className="mb-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
-                    {successMessage}
-                </div>
-            )}
+            {successMessage &&
+                !showModal && (
+                    <div className="mb-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
+                        {successMessage}
+                    </div>
+                )}
 
             {/* Error */}
             {errorMessage && (
@@ -267,40 +310,67 @@ Please ask the employee to change the temporary password after logging in.
                 </h2>
 
                 <p className="mt-1 text-sm text-gray-500">
-                    Search by employee ID or employee
-                    name.
+                    Search by employee name,
+                    employee ID, or designation.
                 </p>
 
                 {/* Search */}
                 <div className="mt-5">
+
                     <label className="mb-2 block text-sm font-medium text-gray-700">
                         Search Employee
                     </label>
 
-                    <input
-                        type="text"
-                        value={search}
-                        onChange={(e) =>
-                            setSearch(
-                                e.target.value
-                            )
-                        }
-                        placeholder="Search by Employee ID or Name..."
-                        className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
-                    />
+                    <div className="flex gap-2">
+
+                        <input
+                            type="text"
+                            value={search}
+                            onChange={
+                                handleSearchChange
+                            }
+                            placeholder="Search name, Employee ID or designation..."
+                            className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
+                        />
+
+                        {search && (
+                            <button
+                                type="button"
+                                onClick={
+                                    handleClearSearch
+                                }
+                                className="rounded-lg border border-gray-300 px-4 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                            >
+                                Clear
+                            </button>
+                        )}
+
+                    </div>
+
+                    {search && (
+                        <p className="mt-2 text-xs text-gray-400">
+                            Searching all employees for
+                            "{search}"
+                        </p>
+                    )}
+
                 </div>
 
                 {/* Employee List */}
                 <div className="mt-4 max-h-72 overflow-y-auto rounded-lg border border-gray-200">
 
                     {loadingEmployees ? (
+
                         <div className="p-5 text-center text-sm text-gray-500">
-                            Loading employees...
+                            Searching employees...
                         </div>
-                    ) : filteredEmployees.length >
+
+                    ) : employees.length >
                         0 ? (
-                        filteredEmployees.map(
+
+                        employees.map(
                             (employee) => {
+
                                 const isSelected =
                                     selectedEmployee ===
                                     employee.employee_id;
@@ -321,7 +391,9 @@ Please ask the employee to change the temporary password after logging in.
                                             : "hover:bg-gray-50"
                                             }`}
                                     >
+
                                         <div>
+
                                             <p className="text-sm font-semibold text-gray-800">
                                                 {
                                                     employee.name
@@ -329,6 +401,7 @@ Please ask the employee to change the temporary password after logging in.
                                             </p>
 
                                             <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-500">
+
                                                 <span>
                                                     ID:{" "}
                                                     {
@@ -338,10 +411,13 @@ Please ask the employee to change the temporary password after logging in.
 
                                                 <span>
                                                     {
-                                                        employee.designation
+                                                        employee.designation ||
+                                                        "-"
                                                     }
                                                 </span>
+
                                             </div>
+
                                         </div>
 
                                         {isSelected && (
@@ -349,15 +425,31 @@ Please ask the employee to change the temporary password after logging in.
                                                 Selected
                                             </span>
                                         )}
+
                                     </button>
                                 );
                             }
                         )
+
                     ) : (
-                        <div className="p-5 text-center text-sm text-gray-500">
-                            No employees found.
+
+                        <div className="p-5 text-center">
+
+                            <p className="text-sm font-medium text-gray-500">
+                                No employees found.
+                            </p>
+
+                            {search && (
+                                <p className="mt-1 text-xs text-gray-400">
+                                    No employee matched
+                                    "{search}".
+                                </p>
+                            )}
+
                         </div>
+
                     )}
+
                 </div>
 
                 {/* Selected Employee */}
@@ -369,6 +461,7 @@ Please ask the employee to change the temporary password after logging in.
                         </p>
 
                         <div className="mt-3">
+
                             <p className="text-sm text-gray-500">
                                 Employee ID
                             </p>
@@ -376,12 +469,15 @@ Please ask the employee to change the temporary password after logging in.
                             <p className="text-base font-semibold text-gray-800">
                                 {selectedEmployee}
                             </p>
+
                         </div>
+
                     </div>
                 )}
 
                 {/* Reset Button */}
                 <div className="mt-6 flex justify-end">
+
                     <button
                         type="button"
                         onClick={
@@ -397,15 +493,15 @@ Please ask the employee to change the temporary password after logging in.
                             ? "Resetting..."
                             : "Reset Password"}
                     </button>
+
                 </div>
+
             </div>
 
-            {/* ================================== */}
             {/* PASSWORD RESET MODAL */}
-            {/* ================================== */}
-
             {showModal &&
                 resetResult && (
+
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
 
                         <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
@@ -416,15 +512,16 @@ Please ask the employee to change the temporary password after logging in.
                                 <div className="flex items-center justify-between">
 
                                     <div>
+
                                         <h2 className="text-lg font-semibold text-gray-800">
-                                            Password Reset
-                                            Successfully
+                                            Password Reset Successfully
                                         </h2>
 
                                         <p className="mt-1 text-sm text-gray-500">
                                             Save or copy the
                                             temporary password.
                                         </p>
+
                                     </div>
 
                                     <button
@@ -438,37 +535,44 @@ Please ask the employee to change the temporary password after logging in.
                                     </button>
 
                                 </div>
+
                             </div>
 
                             {/* Modal Body */}
                             <div className="space-y-5 px-6 py-6">
 
-                                {/* Message */}
                                 <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+
                                     <p className="text-sm font-medium text-green-700">
                                         {
                                             resetResult.message
                                         }
                                     </p>
+
                                 </div>
 
                                 {/* Employee ID */}
                                 <div>
+
                                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
                                         Employee ID
                                     </p>
 
                                     <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+
                                         <p className="font-semibold text-gray-800">
                                             {
                                                 resetResult.employee_id
                                             }
                                         </p>
+
                                     </div>
+
                                 </div>
 
                                 {/* Temporary Password */}
                                 <div>
+
                                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
                                         New Temporary Password
                                     </p>
@@ -476,11 +580,13 @@ Please ask the employee to change the temporary password after logging in.
                                     <div className="flex items-center gap-2">
 
                                         <div className="flex-1 rounded-lg border border-gray-300 bg-gray-50 px-4 py-3">
+
                                             <p className="break-all font-mono text-sm font-semibold text-gray-800">
                                                 {
                                                     resetResult.new_temporary_password
                                                 }
                                             </p>
+
                                         </div>
 
                                         <button
@@ -494,17 +600,19 @@ Please ask the employee to change the temporary password after logging in.
                                         </button>
 
                                     </div>
+
                                 </div>
 
-                                {/* Warning */}
                                 <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+
                                     <p className="text-xs leading-5 text-yellow-700">
-                                        This temporary
-                                        password should be
-                                        shared securely with
-                                        the employee.
+                                        This temporary password
+                                        should be shared securely
+                                        with the employee.
                                     </p>
+
                                 </div>
+
                             </div>
 
                             {/* Modal Footer */}
@@ -531,9 +639,12 @@ Please ask the employee to change the temporary password after logging in.
                                 </button>
 
                             </div>
+
                         </div>
+
                     </div>
                 )}
+
         </div>
     );
 };

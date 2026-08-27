@@ -1,9 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
-import { getAllEmployees, createTask } from "../../api/employeeApi";
+import {
+    getAllEmployees,
+    createTask,
+} from "../../api/employeeApi";
 
 const Tasks = () => {
     const [employees, setEmployees] = useState([]);
-    const [loadingEmployees, setLoadingEmployees] = useState(true);
+    const [loadingEmployees, setLoadingEmployees] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
     const [successMessage, setSuccessMessage] = useState("");
@@ -20,65 +23,105 @@ const Tasks = () => {
 
     const [errors, setErrors] = useState({});
 
-    // Search filters
-    const [searchName, setSearchName] = useState("");
-    const [searchId, setSearchId] = useState("");
-    const [searchDesignation, setSearchDesignation] = useState("");
+    // Backend employee search
+    const [search, setSearch] = useState("");
 
-    // Employee search dropdown
-    const [showEmployeeResults, setShowEmployeeResults] = useState(false);
+    // Selected employee object
+    const [selectedEmployee, setSelectedEmployee] = useState(null);
+
+    // Employee dropdown
+    const [showEmployeeResults, setShowEmployeeResults] =
+        useState(false);
 
     const employeeSearchRef = useRef(null);
 
     // --------------------------------------------------
-    // Fetch Employees
+    // FETCH EMPLOYEES
+    // --------------------------------------------------
+    const fetchEmployees = async (searchValue = "") => {
+        try {
+            setLoadingEmployees(true);
+            setErrorMessage("");
+
+            const data = await getAllEmployees({
+                page: 1,
+                search: searchValue.trim(),
+            });
+
+            console.log(
+                "Employees API Response:",
+                data
+            );
+
+            if (Array.isArray(data)) {
+                setEmployees(data);
+            } else if (
+                Array.isArray(data?.results)
+            ) {
+                setEmployees(data.results);
+            } else if (
+                Array.isArray(data?.data)
+            ) {
+                setEmployees(data.data);
+            } else {
+                setEmployees([]);
+            }
+        } catch (error) {
+            console.error(
+                "Error fetching employees:",
+                error
+            );
+
+            setEmployees([]);
+
+            setErrorMessage(
+                error?.response?.data?.detail ||
+                "Failed to load employees."
+            );
+        } finally {
+            setLoadingEmployees(false);
+        }
+    };
+
+    // --------------------------------------------------
+    // INITIAL EMPLOYEE LOAD
     // --------------------------------------------------
     useEffect(() => {
-        const fetchEmployees = async () => {
-            try {
-                setLoadingEmployees(true);
-                setErrorMessage("");
-
-                const data = await getAllEmployees();
-
-                console.log("Employees API Response:", data);
-
-                if (Array.isArray(data)) {
-                    setEmployees(data);
-                } else if (Array.isArray(data?.results)) {
-                    setEmployees(data.results);
-                } else {
-                    setEmployees([]);
-                }
-            } catch (error) {
-                console.error("Error fetching employees:", error);
-
-                setErrorMessage(
-                    error?.response?.data?.detail ||
-                    "Failed to load employees. Please try again."
-                );
-            } finally {
-                setLoadingEmployees(false);
-            }
-        };
-
-        fetchEmployees();
+        fetchEmployees("");
     }, []);
 
     // --------------------------------------------------
-    // Close employee results when clicking outside
+    // SMOOTH BACKEND SEARCH - 300ms DEBOUNCE
+    // --------------------------------------------------
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            fetchEmployees(search);
+        }, 300);
+
+        return () => {
+            clearTimeout(timer);
+        };
+    }, [search]);
+
+    // --------------------------------------------------
+    // CLOSE DROPDOWN WHEN CLICKING OUTSIDE
     // --------------------------------------------------
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (
                 employeeSearchRef.current &&
-                !employeeSearchRef.current.contains(event.target)
+                !employeeSearchRef.current.contains(
+                    event.target
+                )
             ) {
                 setShowEmployeeResults(false);
             }
         };
 
-        document.addEventListener("mousedown", handleClickOutside);
+        document.addEventListener(
+            "mousedown",
+            handleClickOutside
+        );
 
         return () => {
             document.removeEventListener(
@@ -89,7 +132,7 @@ const Tasks = () => {
     }, []);
 
     // --------------------------------------------------
-    // Normal Form Input
+    // NORMAL FORM INPUT
     // --------------------------------------------------
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -109,28 +152,19 @@ const Tasks = () => {
     };
 
     // --------------------------------------------------
-    // Employee Search
+    // EMPLOYEE SEARCH
     // --------------------------------------------------
-    const handleEmployeeSearch = (field, value) => {
-        if (field === "name") {
-            setSearchName(value);
-        }
+    const handleEmployeeSearch = (value) => {
+        setSearch(value);
 
-        if (field === "id") {
-            setSearchId(value);
-        }
-
-        if (field === "designation") {
-            setSearchDesignation(value);
-        }
-
-        // If admin starts searching again,
-        // remove previous selection
+        // Remove previous selection when typing again
         if (formData.assigned_to) {
             setFormData((prev) => ({
                 ...prev,
                 assigned_to: "",
             }));
+
+            setSelectedEmployee(null);
         }
 
         setErrors((prev) => ({
@@ -145,71 +179,31 @@ const Tasks = () => {
     };
 
     // --------------------------------------------------
-    // Filter Employees
-    // --------------------------------------------------
-    const filteredEmployees = employees.filter((employee) => {
-        const name = (employee.name || "").toLowerCase();
-
-        const employeeId = (
-            employee.employee_id || ""
-        ).toLowerCase();
-
-        const designation = (
-            employee.designation || ""
-        ).toLowerCase();
-
-        const nameSearch = searchName
-            .trim()
-            .toLowerCase();
-
-        const idSearch = searchId
-            .trim()
-            .toLowerCase();
-
-        const designationSearch = searchDesignation
-            .trim()
-            .toLowerCase();
-
-        const matchesName =
-            !nameSearch || name.includes(nameSearch);
-
-        const matchesId =
-            !idSearch || employeeId.includes(idSearch);
-
-        const matchesDesignation =
-            !designationSearch ||
-            designation.includes(designationSearch);
-
-        return (
-            matchesName &&
-            matchesId &&
-            matchesDesignation
-        );
-    });
-
-    // --------------------------------------------------
-    // Select Employee
-    // IMPORTANT:
-    // assigned_to = employee.user_id
-    // NOT employee.id
+    // SELECT EMPLOYEE
+    // assigned_to = user_id
     // --------------------------------------------------
     const handleEmployeeSelect = (employee) => {
-        console.log("Selected Employee:", employee);
         console.log(
-            "Passing user_id to assigned_to:",
+            "Selected Employee:",
+            employee
+        );
+
+        console.log(
+            "Passing user_id in assigned_to:",
             employee.user_id
         );
 
         setFormData((prev) => ({
             ...prev,
-
-            // IMPORTANT CHANGE
             assigned_to: employee.user_id,
         }));
 
-        setSearchName(employee.name || "");
-        setSearchId(employee.employee_id || "");
-        setSearchDesignation(employee.designation || "");
+        setSelectedEmployee(employee);
+
+        setSearch(
+            `${employee.name || ""} - ${employee.employee_id || ""
+            }`
+        );
 
         setErrors((prev) => ({
             ...prev,
@@ -223,7 +217,7 @@ const Tasks = () => {
     };
 
     // --------------------------------------------------
-    // Clear Employee Selection
+    // CLEAR EMPLOYEE
     // --------------------------------------------------
     const clearEmployeeSelection = () => {
         setFormData((prev) => ({
@@ -231,9 +225,9 @@ const Tasks = () => {
             assigned_to: "",
         }));
 
-        setSearchName("");
-        setSearchId("");
-        setSearchDesignation("");
+        setSelectedEmployee(null);
+
+        setSearch("");
 
         setErrors((prev) => ({
             ...prev,
@@ -244,19 +238,7 @@ const Tasks = () => {
     };
 
     // --------------------------------------------------
-    // Selected Employee
-    // IMPORTANT:
-    // Find using user_id because assigned_to
-    // now contains user_id
-    // --------------------------------------------------
-    const selectedEmployee = employees.find(
-        (employee) =>
-            String(employee.user_id) ===
-            String(formData.assigned_to)
-    );
-
-    // --------------------------------------------------
-    // Validation
+    // VALIDATION
     // --------------------------------------------------
     const validateForm = () => {
         const newErrors = {};
@@ -307,7 +289,7 @@ const Tasks = () => {
     };
 
     // --------------------------------------------------
-    // Submit Task
+    // SUBMIT TASK
     // --------------------------------------------------
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -322,9 +304,9 @@ const Tasks = () => {
         try {
             setSubmitting(true);
 
-            // assigned_to contains employee.user_id
             const payload = {
-                title: formData.title.trim(),
+                title:
+                    formData.title.trim(),
 
                 description:
                     formData.description.trim(),
@@ -374,12 +356,16 @@ const Tasks = () => {
                 priority: "",
             });
 
-            setSearchName("");
-            setSearchId("");
-            setSearchDesignation("");
+            setSearch("");
+
+            setSelectedEmployee(null);
+
+            setEmployees([]);
 
             setErrors({});
+
             setShowEmployeeResults(false);
+
         } catch (error) {
             console.error(
                 "Error creating task:",
@@ -421,7 +407,7 @@ const Tasks = () => {
     };
 
     // --------------------------------------------------
-    // Clear Entire Form
+    // CLEAR FORM
     // --------------------------------------------------
     const handleClear = () => {
         setFormData({
@@ -433,12 +419,14 @@ const Tasks = () => {
             priority: "",
         });
 
-        setSearchName("");
-        setSearchId("");
-        setSearchDesignation("");
+        setSearch("");
+
+        setSelectedEmployee(null);
 
         setErrors({});
+
         setSuccessMessage("");
+
         setErrorMessage("");
 
         setShowEmployeeResults(false);
@@ -449,6 +437,7 @@ const Tasks = () => {
 
             {/* PAGE HEADER */}
             <div className="mb-6">
+
                 <h1 className="text-2xl font-semibold text-ettm-blue">
                     Assign Task
                 </h1>
@@ -457,16 +446,17 @@ const Tasks = () => {
                     Create a task and assign it
                     to an employee.
                 </p>
+
             </div>
 
-            {/* SUCCESS MESSAGE */}
+            {/* SUCCESS */}
             {successMessage && (
                 <div className="mb-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
                     {successMessage}
                 </div>
             )}
 
-            {/* ERROR MESSAGE */}
+            {/* ERROR */}
             {errorMessage && (
                 <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
                     {errorMessage}
@@ -479,6 +469,7 @@ const Tasks = () => {
                 <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
 
                     <div className="mb-5">
+
                         <h2 className="text-lg font-semibold text-gray-800">
                             Task Details
                         </h2>
@@ -487,10 +478,12 @@ const Tasks = () => {
                             Enter the basic information
                             for the task.
                         </p>
+
                     </div>
 
                     {/* TITLE */}
                     <div className="mb-5">
+
                         <label
                             htmlFor="title"
                             className="mb-2 block text-sm font-medium text-gray-700"
@@ -508,7 +501,7 @@ const Tasks = () => {
                             value={formData.title}
                             onChange={handleChange}
                             placeholder="Enter task title"
-                            className={`w-full rounded-lg border px-4 py-3 text-sm outline-none transition focus:ring-2 focus:ring-ettm-blue/20 ${errors.title
+                            className={`w-full rounded-lg border px-4 py-3 text-sm outline-none ${errors.title
                                 ? "border-red-400"
                                 : "border-gray-300"
                                 }`}
@@ -519,10 +512,12 @@ const Tasks = () => {
                                 {errors.title}
                             </p>
                         )}
+
                     </div>
 
                     {/* DESCRIPTION */}
                     <div>
+
                         <label
                             htmlFor="description"
                             className="mb-2 block text-sm font-medium text-gray-700"
@@ -536,13 +531,13 @@ const Tasks = () => {
                         <textarea
                             id="description"
                             name="description"
+                            rows={5}
                             value={
                                 formData.description
                             }
                             onChange={handleChange}
                             placeholder="Describe the task..."
-                            rows={5}
-                            className={`w-full resize-none rounded-lg border px-4 py-3 text-sm outline-none transition focus:ring-2 focus:ring-ettm-blue/20 ${errors.description
+                            className={`w-full resize-none rounded-lg border px-4 py-3 text-sm outline-none ${errors.description
                                 ? "border-red-400"
                                 : "border-gray-300"
                                 }`}
@@ -550,25 +545,30 @@ const Tasks = () => {
 
                         {errors.description && (
                             <p className="mt-1 text-xs text-red-500">
-                                {errors.description}
+                                {
+                                    errors.description
+                                }
                             </p>
                         )}
+
                     </div>
+
                 </div>
 
                 {/* ASSIGNMENT */}
                 <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
 
                     <div className="mb-5">
+
                         <h2 className="text-lg font-semibold text-gray-800">
                             Assignment
                         </h2>
 
                         <p className="mt-1 text-sm text-gray-500">
-                            Search employees using
-                            Name, Employee ID,
-                            or Designation.
+                            Search by employee name,
+                            employee ID, or designation.
                         </p>
+
                     </div>
 
                     <div
@@ -576,122 +576,68 @@ const Tasks = () => {
                         className="relative"
                     >
 
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                        <label className="mb-2 block text-sm font-medium text-gray-700">
+                            Search Employee
+                        </label>
 
-                            {/* NAME */}
-                            <div>
-                                <label className="mb-2 block text-sm font-medium text-gray-700">
-                                    Employee Name
-                                </label>
+                        <input
+                            type="text"
+                            value={search}
+                            placeholder="Search name, Employee ID or designation..."
+                            onFocus={() =>
+                                setShowEmployeeResults(
+                                    true
+                                )
+                            }
+                            onChange={(e) =>
+                                handleEmployeeSearch(
+                                    e.target.value
+                                )
+                            }
+                            className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
+                        />
 
-                                <input
-                                    type="text"
-                                    value={searchName}
-                                    disabled={
-                                        loadingEmployees
-                                    }
-                                    placeholder="Search by name"
-                                    onFocus={() =>
-                                        setShowEmployeeResults(
-                                            true
-                                        )
-                                    }
-                                    onChange={(e) =>
-                                        handleEmployeeSearch(
-                                            "name",
-                                            e.target.value
-                                        )
-                                    }
-                                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
-                                />
-                            </div>
+                        {/* SEARCH DROPDOWN */}
+                        {showEmployeeResults && (
 
-                            {/* EMPLOYEE ID */}
-                            <div>
-                                <label className="mb-2 block text-sm font-medium text-gray-700">
-                                    Employee ID
-                                </label>
+                            <div className="absolute left-0 right-0 z-30 mt-2 max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl">
 
-                                <input
-                                    type="text"
-                                    value={searchId}
-                                    disabled={
-                                        loadingEmployees
-                                    }
-                                    placeholder="Search by employee ID"
-                                    onFocus={() =>
-                                        setShowEmployeeResults(
-                                            true
-                                        )
-                                    }
-                                    onChange={(e) =>
-                                        handleEmployeeSearch(
-                                            "id",
-                                            e.target.value
-                                        )
-                                    }
-                                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
-                                />
-                            </div>
+                                {loadingEmployees ? (
 
-                            {/* DESIGNATION */}
-                            <div>
-                                <label className="mb-2 block text-sm font-medium text-gray-700">
-                                    Designation
-                                </label>
+                                    <div className="px-4 py-6 text-center">
 
-                                <input
-                                    type="text"
-                                    value={
-                                        searchDesignation
-                                    }
-                                    disabled={
-                                        loadingEmployees
-                                    }
-                                    placeholder="Search by designation"
-                                    onFocus={() =>
-                                        setShowEmployeeResults(
-                                            true
-                                        )
-                                    }
-                                    onChange={(e) =>
-                                        handleEmployeeSearch(
-                                            "designation",
-                                            e.target.value
-                                        )
-                                    }
-                                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
-                                />
-                            </div>
-                        </div>
-
-                        {/* SEARCH RESULTS */}
-                        {showEmployeeResults &&
-                            !loadingEmployees && (
-                                <div className="absolute left-0 right-0 z-30 mt-2 max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl">
-
-                                    {/* Result Count */}
-                                    <div className="border-b border-gray-100 bg-gray-50 px-4 py-2">
-                                        <p className="text-xs font-medium text-gray-500">
-                                            {
-                                                filteredEmployees.length
-                                            }{" "}
-                                            employee
-                                            {filteredEmployees.length !==
-                                                1
-                                                ? "s"
-                                                : ""}{" "}
-                                            found
+                                        <p className="text-sm text-gray-500">
+                                            Searching employees...
                                         </p>
+
                                     </div>
 
-                                    {filteredEmployees.length >
-                                        0 ? (
-                                        filteredEmployees.map(
+                                ) : employees.length > 0 ? (
+
+                                    <>
+                                        <div className="border-b border-gray-100 bg-gray-50 px-4 py-2">
+
+                                            <p className="text-xs font-medium text-gray-500">
+                                                {
+                                                    employees.length
+                                                }{" "}
+                                                employee
+                                                {employees.length !==
+                                                    1
+                                                    ? "s"
+                                                    : ""}{" "}
+                                                found
+                                            </p>
+
+                                        </div>
+
+                                        {employees.map(
                                             (employee) => (
+
                                                 <button
                                                     key={
-                                                        employee.user_id
+                                                        employee.user_id ||
+                                                        employee.id
                                                     }
                                                     type="button"
                                                     onClick={() =>
@@ -701,7 +647,9 @@ const Tasks = () => {
                                                     }
                                                     className="flex w-full items-center justify-between border-b border-gray-100 px-4 py-3 text-left transition last:border-b-0 hover:bg-gray-50"
                                                 >
+
                                                     <div>
+
                                                         <p className="text-sm font-semibold text-gray-800">
                                                             {
                                                                 employee.name
@@ -714,73 +662,68 @@ const Tasks = () => {
                                                             }{" "}
                                                             •{" "}
                                                             {
-                                                                employee.designation
+                                                                employee.designation ||
+                                                                "-"
                                                             }
                                                         </p>
+
                                                     </div>
 
                                                     <span className="text-xs font-medium text-ettm-blue">
                                                         Select
                                                     </span>
-                                                </button>
-                                            )
-                                        )
-                                    ) : (
-                                        <div className="px-4 py-6 text-center">
-                                            <p className="text-sm font-medium text-gray-500">
-                                                No employees found
-                                            </p>
 
+                                                </button>
+
+                                            )
+                                        )}
+
+                                    </>
+
+                                ) : (
+
+                                    <div className="px-4 py-6 text-center">
+
+                                        <p className="text-sm font-medium text-gray-500">
+                                            No employees found
+                                        </p>
+
+                                        {search && (
                                             <p className="mt-1 text-xs text-gray-400">
-                                                Try changing
-                                                your search
-                                                filters.
+                                                No employee matched
+                                                "{search}".
                                             </p>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                                        )}
+
+                                    </div>
+
+                                )}
+
+                            </div>
+
+                        )}
+
                     </div>
 
-                    {/* FILTER INFO */}
+                    {/* SEARCH INFO */}
                     <div className="mt-3 flex items-center justify-between">
+
                         <p className="text-xs text-gray-400">
-                            You can use one or multiple
-                            filters together.
+                            Search runs across all employees.
                         </p>
 
-                        {(searchName ||
-                            searchId ||
-                            searchDesignation) && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setSearchName("");
-                                        setSearchId("");
-                                        setSearchDesignation(
-                                            ""
-                                        );
-                                        setShowEmployeeResults(
-                                            true
-                                        );
+                        {search && (
+                            <button
+                                type="button"
+                                onClick={
+                                    clearEmployeeSelection
+                                }
+                                className="text-xs font-medium text-ettm-blue hover:underline"
+                            >
+                                Clear Search
+                            </button>
+                        )}
 
-                                        if (
-                                            formData.assigned_to
-                                        ) {
-                                            setFormData(
-                                                (prev) => ({
-                                                    ...prev,
-                                                    assigned_to:
-                                                        "",
-                                                })
-                                            );
-                                        }
-                                    }}
-                                    className="text-xs font-medium text-ettm-blue hover:underline"
-                                >
-                                    Clear Search
-                                </button>
-                            )}
                     </div>
 
                     {errors.assigned_to && (
@@ -791,18 +734,22 @@ const Tasks = () => {
 
                     {/* SELECTED EMPLOYEE */}
                     {selectedEmployee && (
+
                         <div className="mt-5 rounded-xl border border-ettm-blue/20 bg-blue-50/50 p-5">
 
                             <div className="flex items-center justify-between">
+
                                 <div>
+
                                     <p className="text-xs font-semibold uppercase tracking-wide text-ettm-blue">
                                         Selected Employee
                                     </p>
 
                                     <p className="mt-1 text-sm text-gray-500">
-                                        This employee will
-                                        receive the task.
+                                        This employee will receive
+                                        the task.
                                     </p>
+
                                 </div>
 
                                 <button
@@ -814,11 +761,11 @@ const Tasks = () => {
                                 >
                                     Change
                                 </button>
+
                             </div>
 
                             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-4">
 
-                                {/* NAME */}
                                 <div>
                                     <p className="text-xs text-gray-400">
                                         Name
@@ -831,7 +778,6 @@ const Tasks = () => {
                                     </p>
                                 </div>
 
-                                {/* EMPLOYEE ID */}
                                 <div>
                                     <p className="text-xs text-gray-400">
                                         Employee ID
@@ -844,7 +790,6 @@ const Tasks = () => {
                                     </p>
                                 </div>
 
-                                {/* USER ID */}
                                 <div>
                                     <p className="text-xs text-gray-400">
                                         User ID
@@ -857,7 +802,6 @@ const Tasks = () => {
                                     </p>
                                 </div>
 
-                                {/* DESIGNATION */}
                                 <div>
                                     <p className="text-xs text-gray-400">
                                         Designation
@@ -865,55 +809,50 @@ const Tasks = () => {
 
                                     <p className="mt-1 text-sm font-semibold text-gray-800">
                                         {
-                                            selectedEmployee.designation
+                                            selectedEmployee.designation ||
+                                            "-"
                                         }
                                     </p>
                                 </div>
 
                             </div>
+
                         </div>
+
                     )}
+
                 </div>
 
-                {/* SCHEDULE & PRIORITY */}
+                {/* SCHEDULE */}
                 <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
 
                     <div className="mb-5">
+
                         <h2 className="text-lg font-semibold text-gray-800">
                             Schedule & Priority
                         </h2>
 
-                        <p className="mt-1 text-sm text-gray-500">
-                            Set the task dates and priority.
-                        </p>
                     </div>
 
                     <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
 
-                        {/* START DATE */}
+                        {/* START */}
                         <div>
-                            <label
-                                htmlFor="start_date"
-                                className="mb-2 block text-sm font-medium text-gray-700"
-                            >
-                                Start Date
-                                <span className="text-red-500">
-                                    {" "}*
-                                </span>
+
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Start Date *
                             </label>
 
                             <input
-                                id="start_date"
-                                name="start_date"
                                 type="date"
+                                name="start_date"
                                 value={
                                     formData.start_date
                                 }
-                                onChange={handleChange}
-                                className={`w-full rounded-lg border px-4 py-3 text-sm outline-none transition focus:ring-2 focus:ring-ettm-blue/20 ${errors.start_date
-                                    ? "border-red-400"
-                                    : "border-gray-300"
-                                    }`}
+                                onChange={
+                                    handleChange
+                                }
+                                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm"
                             />
 
                             {errors.start_date && (
@@ -923,24 +862,19 @@ const Tasks = () => {
                                     }
                                 </p>
                             )}
+
                         </div>
 
                         {/* DEADLINE */}
                         <div>
-                            <label
-                                htmlFor="deadline"
-                                className="mb-2 block text-sm font-medium text-gray-700"
-                            >
-                                Deadline
-                                <span className="text-red-500">
-                                    {" "}*
-                                </span>
+
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Deadline *
                             </label>
 
                             <input
-                                id="deadline"
-                                name="deadline"
                                 type="date"
+                                name="deadline"
                                 min={
                                     formData.start_date ||
                                     undefined
@@ -948,11 +882,10 @@ const Tasks = () => {
                                 value={
                                     formData.deadline
                                 }
-                                onChange={handleChange}
-                                className={`w-full rounded-lg border px-4 py-3 text-sm outline-none transition focus:ring-2 focus:ring-ettm-blue/20 ${errors.deadline
-                                    ? "border-red-400"
-                                    : "border-gray-300"
-                                    }`}
+                                onChange={
+                                    handleChange
+                                }
+                                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm"
                             />
 
                             {errors.deadline && (
@@ -962,32 +895,27 @@ const Tasks = () => {
                                     }
                                 </p>
                             )}
+
                         </div>
 
                         {/* PRIORITY */}
                         <div>
-                            <label
-                                htmlFor="priority"
-                                className="mb-2 block text-sm font-medium text-gray-700"
-                            >
-                                Priority
-                                <span className="text-red-500">
-                                    {" "}*
-                                </span>
+
+                            <label className="mb-2 block text-sm font-medium text-gray-700">
+                                Priority *
                             </label>
 
                             <select
-                                id="priority"
                                 name="priority"
                                 value={
                                     formData.priority
                                 }
-                                onChange={handleChange}
-                                className={`w-full rounded-lg border bg-white px-4 py-3 text-sm outline-none transition focus:ring-2 focus:ring-ettm-blue/20 ${errors.priority
-                                    ? "border-red-400"
-                                    : "border-gray-300"
-                                    }`}
+                                onChange={
+                                    handleChange
+                                }
+                                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm"
                             >
+
                                 <option value="">
                                     Select Priority
                                 </option>
@@ -1003,6 +931,7 @@ const Tasks = () => {
                                 <option value="High">
                                     High
                                 </option>
+
                             </select>
 
                             {errors.priority && (
@@ -1012,8 +941,11 @@ const Tasks = () => {
                                     }
                                 </p>
                             )}
+
                         </div>
+
                     </div>
+
                 </div>
 
                 {/* ACTIONS */}
@@ -1023,25 +955,25 @@ const Tasks = () => {
                         type="button"
                         onClick={handleClear}
                         disabled={submitting}
-                        className="rounded-lg border border-gray-300 bg-white px-6 py-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-lg border border-gray-300 bg-white px-6 py-3 text-sm font-medium text-gray-700"
                     >
                         Clear
                     </button>
 
                     <button
                         type="submit"
-                        disabled={
-                            submitting ||
-                            loadingEmployees
-                        }
-                        className="rounded-lg bg-ettm-blue px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={submitting}
+                        className="rounded-lg bg-ettm-blue px-6 py-3 text-sm font-medium text-white disabled:opacity-50"
                     >
                         {submitting
                             ? "Assigning..."
                             : "Assign Task"}
                     </button>
+
                 </div>
+
             </form>
+
         </div>
     );
 };

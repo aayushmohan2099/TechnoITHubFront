@@ -23,9 +23,23 @@ export const createEmployee = async (employeeData) => {
 // GET ALL EMPLOYEES
 // ===============================
 
-export const getAllEmployees = async () => {
+export const getAllEmployees = async ({
+    page = 1,
+    search = "",
+} = {}) => {
+    const params = {
+        page,
+    };
+
+    if (search.trim()) {
+        params.search = search.trim();
+    }
+
     const response = await axiosInstance.get(
-        "api/v1/employees/profiles/"
+        "api/v1/employees/profiles/",
+        {
+            params,
+        }
     );
 
     return response.data;
@@ -62,18 +76,46 @@ export const resetEmployeePassword = async (employeeId) => {
 };
 
 // Get All Tasks
-export const getAllTasks = async () => {
+export const getAllTasks = async ({
+    page = 1,
+    search = "",
+} = {}) => {
+    const params = {
+        page,
+    };
+
+    if (search.trim()) {
+        params.search = search.trim();
+    }
+
     const response = await axiosInstance.get(
-        "api/v1/tasks/admin/manage/"
+        "api/v1/tasks/admin/manage/",
+        {
+            params,
+        }
     );
 
     return response.data;
 };
 
 // Attendance History
-export const getAttendanceHistory = async () => {
+export const getAttendanceHistory = async ({
+    page = 1,
+    date = "",
+} = {}) => {
+    const params = {
+        page,
+    };
+
+    if (date) {
+        params.date = date;
+    }
+
     const response = await axiosInstance.get(
-        "api/v1/attendance/admin/history/"
+        "api/v1/attendance/admin/history/",
+        {
+            params,
+        }
     );
 
     return response.data;

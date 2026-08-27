@@ -1,35 +1,177 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { getAttendanceHistory } from "../../api/employeeApi";
+import React, {
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
+
+import {
+    getAttendanceHistory,
+} from "../../api/employeeApi";
 
 const Attendance = () => {
-    const [attendance, setAttendance] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+    const [attendance, setAttendance] =
+        useState([]);
 
-    const [search, setSearch] = useState("");
-    const [selectedEmployee, setSelectedEmployee] = useState(null);
+    const [loading, setLoading] =
+        useState(true);
 
-    const [selectedDate, setSelectedDate] = useState(null);
-    const [currentMonth, setCurrentMonth] = useState(new Date());
+    const [error, setError] =
+        useState("");
 
-    const fetchAttendance = async () => {
+    const [search, setSearch] =
+        useState("");
+
+    const [selectedEmployee, setSelectedEmployee] =
+        useState(null);
+
+    const [selectedDate, setSelectedDate] =
+        useState(null);
+
+    const [currentMonth, setCurrentMonth] =
+        useState(new Date());
+
+    // --------------------------------------------------
+    // Calendar Section Ref
+    // --------------------------------------------------
+    const calendarRef = useRef(null);
+
+    // --------------------------------------------------
+    // Pagination
+    // --------------------------------------------------
+    const [page, setPage] =
+        useState(1);
+
+    const [totalCount, setTotalCount] =
+        useState(0);
+
+    const [nextPage, setNextPage] =
+        useState(null);
+
+    const [previousPage, setPreviousPage] =
+        useState(null);
+
+    // --------------------------------------------------
+    // Today's Date
+    // --------------------------------------------------
+    const getTodayString = () => {
+        const today = new Date();
+
+        return `${today.getFullYear()}-${String(
+            today.getMonth() + 1
+        ).padStart(2, "0")}-${String(
+            today.getDate()
+        ).padStart(2, "0")}`;
+    };
+
+    // --------------------------------------------------
+    // Main Date Filter
+    // Default = Today
+    // --------------------------------------------------
+    const [filterDate, setFilterDate] =
+        useState(getTodayString());
+
+    // --------------------------------------------------
+    // Fetch Attendance
+    // --------------------------------------------------
+    const fetchAttendance = async (
+        pageNumber = page,
+        dateValue = filterDate
+    ) => {
         try {
             setLoading(true);
             setError("");
 
-            const data = await getAttendanceHistory();
+            const data =
+                await getAttendanceHistory({
+                    page: pageNumber,
+                    date: dateValue,
+                });
 
-            console.log("Attendance API Response:", data);
+            console.log(
+                "Attendance API Response:",
+                data
+            );
 
+            // ------------------------------------------
+            // Paginated Response
+            // ------------------------------------------
+            if (
+                Array.isArray(data?.results)
+            ) {
+                setAttendance(
+                    data.results
+                );
+
+                setTotalCount(
+                    data.count || 0
+                );
+
+                setNextPage(
+                    data.next || null
+                );
+
+                setPreviousPage(
+                    data.previous || null
+                );
+
+                return;
+            }
+
+            // ------------------------------------------
+            // data array response
+            // ------------------------------------------
+            if (
+                Array.isArray(data?.data)
+            ) {
+                setAttendance(
+                    data.data
+                );
+
+                setTotalCount(
+                    data.count ||
+                    data.data.length
+                );
+
+                setNextPage(
+                    data.next || null
+                );
+
+                setPreviousPage(
+                    data.previous || null
+                );
+
+                return;
+            }
+
+            // ------------------------------------------
+            // Normal Array Response
+            // ------------------------------------------
             if (Array.isArray(data)) {
                 setAttendance(data);
-            } else if (Array.isArray(data?.results)) {
-                setAttendance(data.results);
-            } else {
-                setAttendance([]);
+
+                setTotalCount(
+                    data.length
+                );
+
+                setNextPage(null);
+                setPreviousPage(null);
+
+                return;
             }
+
+            setAttendance([]);
+            setTotalCount(0);
+            setNextPage(null);
+            setPreviousPage(null);
+
         } catch (err) {
-            console.error("Attendance Error:", err);
+            console.error(
+                "Attendance Error:",
+                err
+            );
+
+            setAttendance([]);
 
             setError(
                 err?.response?.data?.detail ||
@@ -40,11 +182,31 @@ const Attendance = () => {
         }
     };
 
+    // --------------------------------------------------
+    // Initial + Date Change
+    // --------------------------------------------------
     useEffect(() => {
-        fetchAttendance();
-    }, []);
+        setPage(1);
 
-    // Convert seconds to readable hours/minutes
+        fetchAttendance(
+            1,
+            filterDate
+        );
+    }, [filterDate]);
+
+    // --------------------------------------------------
+    // Page Change
+    // --------------------------------------------------
+    useEffect(() => {
+        fetchAttendance(
+            page,
+            filterDate
+        );
+    }, [page]);
+
+    // --------------------------------------------------
+    // Format Duration
+    // --------------------------------------------------
     const formatDuration = (seconds) => {
         if (
             seconds === null ||
@@ -54,25 +216,42 @@ const Attendance = () => {
             return "-";
         }
 
-        const totalSeconds = Number(seconds);
+        const totalSeconds =
+            Number(seconds);
 
-        if (Number.isNaN(totalSeconds)) {
+        if (
+            Number.isNaN(totalSeconds)
+        ) {
             return "-";
         }
 
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor(
-            (totalSeconds % 3600) / 60
-        );
+        const hours =
+            Math.floor(
+                totalSeconds / 3600
+            );
 
-        return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+        const minutes =
+            Math.floor(
+                (totalSeconds % 3600) /
+                60
+            );
+
+        return `${hours}h ${String(
+            minutes
+        ).padStart(2, "0")}m`;
     };
 
-    // Format date
+    // --------------------------------------------------
+    // Format Date
+    // --------------------------------------------------
     const formatDate = (date) => {
-        if (!date) return "-";
+        if (!date) {
+            return "-";
+        }
 
-        return new Date(`${date}T00:00:00`).toLocaleDateString(
+        return new Date(
+            `${date}T00:00:00`
+        ).toLocaleDateString(
             "en-IN",
             {
                 day: "2-digit",
@@ -82,128 +261,230 @@ const Attendance = () => {
         );
     };
 
-    // Format punch time
+    // --------------------------------------------------
+    // Format Time
+    // --------------------------------------------------
     const formatTime = (dateTime) => {
-        if (!dateTime) return "Not Punched";
+        if (!dateTime) {
+            return "Not Punched";
+        }
 
-        const date = new Date(dateTime);
+        const date =
+            new Date(dateTime);
 
-        if (Number.isNaN(date.getTime())) {
+        if (
+            Number.isNaN(
+                date.getTime()
+            )
+        ) {
             return dateTime;
         }
 
-        return date.toLocaleTimeString("en-IN", {
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: true,
-        });
+        return date.toLocaleTimeString(
+            "en-IN",
+            {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                hour12: true,
+            }
+        );
     };
 
-    // Get today's date
-    const today = new Date();
+    // --------------------------------------------------
+    // Search Within Current Date Page
+    // --------------------------------------------------
+    const filteredAttendance =
+        useMemo(() => {
+            const searchText =
+                search
+                    .toLowerCase()
+                    .trim();
 
-    const todayString =
-        `${today.getFullYear()}-${String(
-            today.getMonth() + 1
-        ).padStart(2, "0")}-${String(
-            today.getDate()
-        ).padStart(2, "0")}`;
+            if (!searchText) {
+                return attendance;
+            }
 
-    // Today's attendance
-    const todaysAttendance = useMemo(() => {
-        return attendance.filter(
-            (item) =>
-                item.attendance_date === todayString
-        );
-    }, [attendance, todayString]);
-
-    // Search today's attendance
-    const filteredAttendance = todaysAttendance.filter(
-        (item) => {
-            const searchText = search.toLowerCase();
-
-            return (
-                item.employee_id
-                    ?.toLowerCase()
-                    .includes(searchText) ||
-                item.employee_name
-                    ?.toLowerCase()
-                    .includes(searchText) ||
-                item.name
-                    ?.toLowerCase()
-                    .includes(searchText)
+            return attendance.filter(
+                (item) =>
+                    item.employee_id
+                        ?.toLowerCase()
+                        .includes(
+                            searchText
+                        ) ||
+                    item.employee_name
+                        ?.toLowerCase()
+                        .includes(
+                            searchText
+                        ) ||
+                    item.name
+                        ?.toLowerCase()
+                        .includes(
+                            searchText
+                        )
             );
-        }
-    );
+        }, [
+            attendance,
+            search,
+        ]);
 
-    // Get employee records
-    const employeeRecords = selectedEmployee
-        ? attendance.filter(
-            (item) =>
-                item.employee_id ===
-                selectedEmployee.employee_id ||
-                item.employee_id ===
-                selectedEmployee.id
-        )
-        : [];
+    // --------------------------------------------------
+    // Employee Records
+    //
+    // IMPORTANT:
+    // Since current API is date-filtered,
+    // this only contains currently fetched records.
+    // --------------------------------------------------
+    const employeeRecords =
+        selectedEmployee
+            ? attendance.filter(
+                (item) =>
+                    item.employee_id ===
+                    selectedEmployee.employee_id
+            )
+            : [];
 
-    // Calendar helpers
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
+    // --------------------------------------------------
+    // Calendar Helpers
+    // --------------------------------------------------
+    const year =
+        currentMonth.getFullYear();
 
-    const firstDay = new Date(year, month, 1).getDay();
+    const month =
+        currentMonth.getMonth();
 
-    const daysInMonth = new Date(
-        year,
-        month + 1,
-        0
-    ).getDate();
+    const firstDay =
+        new Date(
+            year,
+            month,
+            1
+        ).getDay();
+
+    const daysInMonth =
+        new Date(
+            year,
+            month + 1,
+            0
+        ).getDate();
 
     const previousMonth = () => {
         setCurrentMonth(
-            new Date(year, month - 1, 1)
+            new Date(
+                year,
+                month - 1,
+                1
+            )
         );
+
         setSelectedDate(null);
     };
 
     const nextMonth = () => {
         setCurrentMonth(
-            new Date(year, month + 1, 1)
+            new Date(
+                year,
+                month + 1,
+                1
+            )
         );
+
         setSelectedDate(null);
     };
 
-    const monthName = currentMonth.toLocaleDateString(
-        "en-IN",
-        {
-            month: "long",
-            year: "numeric",
-        }
-    );
+    const monthName =
+        currentMonth.toLocaleDateString(
+            "en-IN",
+            {
+                month: "long",
+                year: "numeric",
+            }
+        );
 
-    const getDateString = (day) => {
-        return `${year}-${String(month + 1).padStart(
-            2,
-            "0"
-        )}-${String(day).padStart(2, "0")}`;
+    const getDateString = (
+        day
+    ) => {
+        return `${year}-${String(
+            month + 1
+        ).padStart(2, "0")}-${String(
+            day
+        ).padStart(2, "0")}`;
     };
 
-    const getAttendanceForDate = (date) => {
+    const getAttendanceForDate = (
+        date
+    ) => {
         return employeeRecords.find(
             (item) =>
-                item.attendance_date === date
+                item.attendance_date ===
+                date
         );
     };
 
     const selectedDateAttendance =
         selectedDate
-            ? getAttendanceForDate(selectedDate)
+            ? getAttendanceForDate(
+                selectedDate
+            )
             : null;
+
+    // --------------------------------------------------
+    // View Employee Calendar
+    // --------------------------------------------------
+    const handleViewEmployee = (
+        item
+    ) => {
+        setSelectedEmployee(item);
+
+        setSelectedDate(
+            item.attendance_date
+        );
+
+        setCurrentMonth(
+            new Date(
+                `${item.attendance_date}T00:00:00`
+            )
+        );
+
+        // Wait until calendar is rendered
+        setTimeout(() => {
+            calendarRef.current?.scrollIntoView(
+                {
+                    behavior: "smooth",
+                    block: "start",
+                }
+            );
+        }, 100);
+    };
+
+    // --------------------------------------------------
+    // Pagination Info
+    // --------------------------------------------------
+    const pageSize = 10;
+
+    const startRecord =
+        totalCount === 0
+            ? 0
+            : (page - 1) *
+            pageSize +
+            1;
+
+    const endRecord =
+        Math.min(
+            page * pageSize,
+            totalCount
+        );
+
+    const totalPages =
+        Math.ceil(
+            totalCount / pageSize
+        ) || 1;
 
     return (
         <div className="min-h-full bg-gray-50 p-6">
 
-            {/* HEADER */}
+            {/* ==========================================
+                HEADER
+            ========================================== */}
             <div className="mb-6 flex items-center justify-between">
 
                 <div>
@@ -212,14 +493,21 @@ const Attendance = () => {
                     </h1>
 
                     <p className="mt-1 text-sm text-gray-500">
-                        Monitor employee attendance and working hours.
+                        Monitor employee attendance
+                        and working hours.
                     </p>
                 </div>
 
                 <button
-                    onClick={fetchAttendance}
+                    type="button"
+                    onClick={() =>
+                        fetchAttendance(
+                            page,
+                            filterDate
+                        )
+                    }
                     disabled={loading}
-                    className="rounded-lg bg-ettm-blue px-5 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                    className="rounded-lg bg-ettm-blue px-5 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                     {loading
                         ? "Refreshing..."
@@ -235,36 +523,120 @@ const Attendance = () => {
                 </div>
             )}
 
-            {/* TODAY */}
+            {/* ==========================================
+                ATTENDANCE TABLE
+            ========================================== */}
             <div className="mb-6 rounded-xl border border-gray-200 bg-white shadow-sm">
 
+                {/* FILTER HEADER */}
                 <div className="border-b border-gray-200 px-5 py-4">
 
-                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
 
                         <div>
+
                             <h2 className="text-lg font-semibold text-gray-800">
-                                Today's Attendance
+                                Attendance
                             </h2>
 
                             <p className="mt-1 text-xs text-gray-500">
-                                {formatDate(todayString)}
+                                {formatDate(
+                                    filterDate
+                                )}
                             </p>
+
                         </div>
 
-                        <div className="w-full md:w-80">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
 
-                            <input
-                                type="text"
-                                value={search}
-                                onChange={(e) =>
-                                    setSearch(
-                                        e.target.value
-                                    )
-                                }
-                                placeholder="Search employee..."
-                                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
-                            />
+                            {/* DATE FILTER */}
+                            <div>
+
+                                <label
+                                    htmlFor="attendance_date"
+                                    className="mb-1 block text-xs font-medium text-gray-600"
+                                >
+                                    Attendance Date
+                                </label>
+
+                                <input
+                                    id="attendance_date"
+                                    type="date"
+                                    value={
+                                        filterDate
+                                    }
+                                    max={
+                                        getTodayString()
+                                    }
+                                    onChange={(e) => {
+                                        setFilterDate(
+                                            e.target.value
+                                        );
+
+                                        setPage(1);
+
+                                        setSearch("");
+
+                                        setSelectedEmployee(
+                                            null
+                                        );
+
+                                        setSelectedDate(
+                                            null
+                                        );
+                                    }}
+                                    className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
+                                />
+
+                            </div>
+
+                            {/* EMPLOYEE SEARCH */}
+                            <div className="sm:w-72">
+
+                                <label
+                                    htmlFor="attendance_search"
+                                    className="mb-1 block text-xs font-medium text-gray-600"
+                                >
+                                    Search Employee
+                                </label>
+
+                                <input
+                                    id="attendance_search"
+                                    type="text"
+                                    value={
+                                        search
+                                    }
+                                    onChange={(e) =>
+                                        setSearch(
+                                            e.target.value
+                                        )
+                                    }
+                                    placeholder="Name or Employee ID..."
+                                    className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
+                                />
+
+                            </div>
+
+                            {/* TODAY BUTTON */}
+                            {filterDate !==
+                                getTodayString() && (
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setFilterDate(
+                                                getTodayString()
+                                            );
+
+                                            setPage(1);
+                                            setSearch("");
+                                        }}
+                                        className="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                    >
+                                        Today
+                                    </button>
+
+                                )}
 
                         </div>
 
@@ -272,15 +644,40 @@ const Attendance = () => {
 
                 </div>
 
+                {/* LOADING */}
                 {loading ? (
-                    <div className="py-14 text-center text-sm text-gray-500">
-                        Loading attendance...
+
+                    <div className="py-14 text-center">
+
+                        <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-ettm-blue" />
+
+                        <p className="mt-3 text-sm text-gray-500">
+                            Loading attendance...
+                        </p>
+
                     </div>
-                ) : filteredAttendance.length === 0 ? (
-                    <div className="py-14 text-center text-sm text-gray-500">
-                        No attendance records found for today.
+
+                ) : filteredAttendance.length ===
+                    0 ? (
+
+                    <div className="py-14 text-center">
+
+                        <p className="text-sm font-medium text-gray-600">
+                            No attendance records found
+                        </p>
+
+                        <p className="mt-1 text-xs text-gray-400">
+                            No attendance is available
+                            for{" "}
+                            {formatDate(
+                                filterDate
+                            )}.
+                        </p>
+
                     </div>
+
                 ) : (
+
                     <div className="overflow-x-auto">
 
                         <table className="w-full min-w-[900px]">
@@ -320,7 +717,11 @@ const Attendance = () => {
                             <tbody className="divide-y divide-gray-100">
 
                                 {filteredAttendance.map(
-                                    (item, index) => (
+                                    (
+                                        item,
+                                        index
+                                    ) => (
+
                                         <tr
                                             key={
                                                 item.id ||
@@ -329,6 +730,7 @@ const Attendance = () => {
                                             className="hover:bg-gray-50"
                                         >
 
+                                            {/* EMPLOYEE */}
                                             <td className="px-5 py-4">
 
                                                 <p className="text-sm font-semibold text-gray-800">
@@ -348,58 +750,58 @@ const Attendance = () => {
 
                                             </td>
 
+                                            {/* DATE */}
                                             <td className="px-5 py-4 text-sm text-gray-600">
                                                 {formatDate(
                                                     item.attendance_date
                                                 )}
                                             </td>
 
+                                            {/* PUNCH IN */}
                                             <td className="px-5 py-4 text-sm text-gray-600">
                                                 {formatTime(
                                                     item.punch_in
                                                 )}
                                             </td>
 
+                                            {/* PUNCH OUT */}
                                             <td className="px-5 py-4">
 
                                                 {item.punch_out ? (
+
                                                     <span className="text-sm text-gray-600">
                                                         {formatTime(
                                                             item.punch_out
                                                         )}
                                                     </span>
+
                                                 ) : (
+
                                                     <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs font-medium text-yellow-700">
                                                         Not Punched Out
                                                     </span>
+
                                                 )}
 
                                             </td>
 
+                                            {/* DURATION */}
                                             <td className="px-5 py-4 text-sm font-medium text-gray-700">
                                                 {formatDuration(
                                                     item.total_seconds
                                                 )}
                                             </td>
 
+                                            {/* VIEW */}
                                             <td className="px-5 py-4 text-center">
 
                                                 <button
-                                                    onClick={() => {
-                                                        setSelectedEmployee(
+                                                    type="button"
+                                                    onClick={() =>
+                                                        handleViewEmployee(
                                                             item
-                                                        );
-
-                                                        setSelectedDate(
-                                                            item.attendance_date
-                                                        );
-
-                                                        setCurrentMonth(
-                                                            new Date(
-                                                                `${item.attendance_date}T00:00:00`
-                                                            )
-                                                        );
-                                                    }}
+                                                        )
+                                                    }
                                                     className="rounded-lg border border-gray-300 px-4 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100"
                                                 >
                                                     View
@@ -408,6 +810,7 @@ const Attendance = () => {
                                             </td>
 
                                         </tr>
+
                                     )
                                 )}
 
@@ -416,13 +819,119 @@ const Attendance = () => {
                         </table>
 
                     </div>
+
                 )}
+
+                {/* ======================================
+                    PAGINATION
+                ====================================== */}
+                {!loading &&
+                    totalCount > 0 && (
+
+                        <div className="flex flex-col gap-3 border-t border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+
+                            <div>
+
+                                <p className="text-sm text-gray-500">
+                                    Showing{" "}
+                                    <span className="font-medium text-gray-700">
+                                        {
+                                            startRecord
+                                        }
+                                    </span>
+                                    {" - "}
+                                    <span className="font-medium text-gray-700">
+                                        {
+                                            endRecord
+                                        }
+                                    </span>
+                                    {" of "}
+                                    <span className="font-medium text-gray-700">
+                                        {
+                                            totalCount
+                                        }
+                                    </span>
+                                </p>
+
+                                <p className="mt-1 text-xs text-gray-400">
+                                    Page {page} of{" "}
+                                    {totalPages}
+                                </p>
+
+                            </div>
+
+                            <div className="flex gap-2">
+
+                                {/* PREVIOUS */}
+                                <button
+                                    type="button"
+                                    disabled={
+                                        !previousPage ||
+                                        loading ||
+                                        page <= 1
+                                    }
+                                    onClick={() =>
+                                        setPage(
+                                            (
+                                                current
+                                            ) =>
+                                                Math.max(
+                                                    1,
+                                                    current -
+                                                    1
+                                                )
+                                        )
+                                    }
+                                    className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                    Previous
+                                </button>
+
+                                {/* CURRENT PAGE */}
+                                <div className="flex min-w-10 items-center justify-center rounded-lg bg-ettm-blue px-4 py-2 text-sm font-semibold text-white">
+                                    {page}
+                                </div>
+
+                                {/* NEXT */}
+                                <button
+                                    type="button"
+                                    disabled={
+                                        !nextPage ||
+                                        loading ||
+                                        page >=
+                                        totalPages
+                                    }
+                                    onClick={() =>
+                                        setPage(
+                                            (
+                                                current
+                                            ) =>
+                                                current +
+                                                1
+                                        )
+                                    }
+                                    className="rounded-lg bg-ettm-blue px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                    Next
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    )}
 
             </div>
 
-            {/* EMPLOYEE CALENDAR */}
+            {/* ==========================================
+                EMPLOYEE CALENDAR
+            ========================================== */}
             {selectedEmployee && (
-                <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+
+                <div
+                    ref={calendarRef}
+                    className="scroll-mt-6 rounded-xl border border-gray-200 bg-white shadow-sm"
+                >
 
                     {/* Calendar Header */}
                     <div className="flex flex-col gap-4 border-b border-gray-200 px-6 py-5 md:flex-row md:items-center md:justify-between">
@@ -436,8 +945,7 @@ const Attendance = () => {
                             <p className="mt-1 text-sm text-gray-500">
                                 {selectedEmployee.employee_name ||
                                     selectedEmployee.name ||
-                                    "-"}
-                                {" "}
+                                    "-"}{" "}
                                 (
                                 {selectedEmployee.employee_id ||
                                     "-"}
@@ -447,9 +955,16 @@ const Attendance = () => {
                         </div>
 
                         <button
-                            onClick={() =>
-                                setSelectedEmployee(null)
-                            }
+                            type="button"
+                            onClick={() => {
+                                setSelectedEmployee(
+                                    null
+                                );
+
+                                setSelectedDate(
+                                    null
+                                );
+                            }}
                             className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                         >
                             Close
@@ -465,7 +980,10 @@ const Attendance = () => {
                             <div className="mb-4 flex items-center justify-between">
 
                                 <button
-                                    onClick={previousMonth}
+                                    type="button"
+                                    onClick={
+                                        previousMonth
+                                    }
                                     className="rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50"
                                 >
                                     ←
@@ -476,7 +994,10 @@ const Attendance = () => {
                                 </h3>
 
                                 <button
-                                    onClick={nextMonth}
+                                    type="button"
+                                    onClick={
+                                        nextMonth
+                                    }
                                     className="rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50"
                                 >
                                     →
@@ -496,32 +1017,49 @@ const Attendance = () => {
                                     "Sat",
                                 ].map(
                                     (day) => (
+
                                         <div
-                                            key={day}
+                                            key={
+                                                day
+                                            }
                                             className="border-b border-r bg-gray-50 px-2 py-3 text-center text-xs font-semibold text-gray-500"
                                         >
-                                            {day}
+                                            {
+                                                day
+                                            }
                                         </div>
+
                                     )
                                 )}
 
                                 {Array.from({
-                                    length: firstDay,
+                                    length:
+                                        firstDay,
                                 }).map(
-                                    (_, index) => (
+                                    (
+                                        _,
+                                        index
+                                    ) => (
+
                                         <div
                                             key={`empty-${index}`}
                                             className="min-h-[80px] border-b border-r bg-gray-50"
                                         />
+
                                     )
                                 )}
 
                                 {Array.from({
-                                    length: daysInMonth,
+                                    length:
+                                        daysInMonth,
                                 }).map(
-                                    (_, index) => {
+                                    (
+                                        _,
+                                        index
+                                    ) => {
                                         const day =
-                                            index + 1;
+                                            index +
+                                            1;
 
                                         const date =
                                             getDateString(
@@ -540,12 +1078,14 @@ const Attendance = () => {
                                         return (
                                             <button
                                                 type="button"
-                                                key={date}
-                                                onClick={() => {
+                                                key={
+                                                    date
+                                                }
+                                                onClick={() =>
                                                     setSelectedDate(
                                                         date
-                                                    );
-                                                }}
+                                                    )
+                                                }
                                                 className={`min-h-[80px] border-b border-r p-2 text-left transition ${isSelected
                                                     ? "bg-blue-50"
                                                     : "bg-white hover:bg-gray-50"
@@ -555,7 +1095,9 @@ const Attendance = () => {
                                                 <div className="flex items-start justify-between">
 
                                                     <span className="text-sm font-medium text-gray-700">
-                                                        {day}
+                                                        {
+                                                            day
+                                                        }
                                                     </span>
 
                                                     {record && (
@@ -565,6 +1107,7 @@ const Attendance = () => {
                                                 </div>
 
                                                 {record && (
+
                                                     <div className="mt-3">
 
                                                         <p className="text-[10px] text-green-600">
@@ -578,6 +1121,7 @@ const Attendance = () => {
                                                         </p>
 
                                                     </div>
+
                                                 )}
 
                                             </button>
@@ -588,8 +1132,11 @@ const Attendance = () => {
                             </div>
 
                             <div className="mt-4 flex items-center gap-2 text-xs text-gray-500">
+
                                 <span className="h-2.5 w-2.5 rounded-full bg-ettm-blue" />
+
                                 Attendance recorded
+
                             </div>
 
                         </div>
@@ -602,6 +1149,7 @@ const Attendance = () => {
                             </h3>
 
                             {selectedDate ? (
+
                                 <>
                                     <p className="mt-1 text-xs text-gray-500">
                                         {formatDate(
@@ -610,9 +1158,12 @@ const Attendance = () => {
                                     </p>
 
                                     {selectedDateAttendance ? (
+
                                         <div className="mt-6 space-y-4">
 
+                                            {/* PUNCH IN */}
                                             <div className="rounded-lg bg-white p-4">
+
                                                 <p className="text-xs text-gray-400">
                                                     Punch In
                                                 </p>
@@ -622,9 +1173,12 @@ const Attendance = () => {
                                                         selectedDateAttendance.punch_in
                                                     )}
                                                 </p>
+
                                             </div>
 
+                                            {/* PUNCH OUT */}
                                             <div className="rounded-lg bg-white p-4">
+
                                                 <p className="text-xs text-gray-400">
                                                     Punch Out
                                                 </p>
@@ -636,9 +1190,12 @@ const Attendance = () => {
                                                         )
                                                         : "Not Punched Out"}
                                                 </p>
+
                                             </div>
 
+                                            {/* HOURS */}
                                             <div className="rounded-lg bg-white p-4">
+
                                                 <p className="text-xs text-gray-400">
                                                     Total Working Hours
                                                 </p>
@@ -648,9 +1205,12 @@ const Attendance = () => {
                                                         selectedDateAttendance.total_seconds
                                                     )}
                                                 </p>
+
                                             </div>
 
+                                            {/* STATUS */}
                                             <div className="rounded-lg bg-white p-4">
+
                                                 <p className="text-xs text-gray-400">
                                                     Status
                                                 </p>
@@ -658,10 +1218,13 @@ const Attendance = () => {
                                                 <p className="mt-1 text-sm font-semibold text-green-600">
                                                     Present
                                                 </p>
+
                                             </div>
 
                                         </div>
+
                                     ) : (
+
                                         <div className="mt-6 rounded-lg bg-white p-5 text-center">
 
                                             <p className="text-sm font-medium text-gray-700">
@@ -669,16 +1232,22 @@ const Attendance = () => {
                                             </p>
 
                                             <p className="mt-1 text-xs text-gray-500">
-                                                No attendance data is available for this date.
+                                                No attendance data is
+                                                available for this date.
                                             </p>
 
                                         </div>
+
                                     )}
+
                                 </>
+
                             ) : (
+
                                 <div className="mt-6 text-center text-sm text-gray-500">
                                     Select a date from the calendar.
                                 </div>
+
                             )}
 
                         </div>
@@ -686,6 +1255,7 @@ const Attendance = () => {
                     </div>
 
                 </div>
+
             )}
 
         </div>
