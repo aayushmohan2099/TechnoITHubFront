@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { getAllTasks } from "../../api/employeeApi";
 
 const TaskList = () => {
@@ -29,91 +29,51 @@ const TaskList = () => {
 
     const [previousPage, setPreviousPage] = useState(null);
 
-    const [selectedTask, setSelectedTask] =
+    const [selectedEmployee, setSelectedEmployee] =
         useState(null);
+    const [taskTab, setTaskTab] = useState("open");
 
     // --------------------------------------------------
     // Fetch Tasks
     // --------------------------------------------------
     const fetchTasks = async (
-        pageNumber = page,
-        searchValue = search
+        pageNumber = 1,
+        searchValue = ""
     ) => {
         try {
             setLoading(true);
             setError("");
 
-            const data = await getAllTasks({
-                page: pageNumber,
-                search: searchValue.trim(),
-            });
+            let allTasks = [];
+            let currentPage = pageNumber;
+            let hasMore = true;
 
-            console.log(
-                "Task List Response:",
-                data
-            );
+            while (hasMore) {
+                const data = await getAllTasks({
+                    page: currentPage,
+                    search: searchValue.trim(),
+                    page_size: 100,
+                });
 
-            // Paginated response
-            if (
-                Array.isArray(data?.results)
-            ) {
-                setTasks(data.results);
+                const pageResults = Array.isArray(data?.results)
+                    ? data.results
+                    : Array.isArray(data?.data)
+                        ? data.data
+                        : Array.isArray(data)
+                            ? data
+                            : [];
 
-                setTotalCount(
-                    data.count || 0
-                );
+                allTasks = [...allTasks, ...pageResults];
 
-                setNextPage(
-                    data.next || null
-                );
-
-                setPreviousPage(
-                    data.previous || null
-                );
-
-                return;
+                const nextUrl = data?.next;
+                if (nextUrl) {
+                    currentPage += 1;
+                } else {
+                    hasMore = false;
+                }
             }
 
-            // Backend response:
-            // { data: [...] }
-            if (
-                Array.isArray(data?.data)
-            ) {
-                setTasks(data.data);
-
-                setTotalCount(
-                    data.count ||
-                    data.data.length
-                );
-
-                setNextPage(
-                    data.next || null
-                );
-
-                setPreviousPage(
-                    data.previous || null
-                );
-
-                return;
-            }
-
-            // Normal array
-            if (Array.isArray(data)) {
-                setTasks(data);
-
-                setTotalCount(
-                    data.length
-                );
-
-                setNextPage(null);
-
-                setPreviousPage(null);
-
-                return;
-            }
-
-            setTasks([]);
-            setTotalCount(0);
+            setTasks(allTasks);
             setNextPage(null);
             setPreviousPage(null);
 
@@ -124,6 +84,9 @@ const TaskList = () => {
             );
 
             setTasks([]);
+            setTotalCount(0);
+            setNextPage(null);
+            setPreviousPage(null);
 
             setError(
                 err?.response?.data?.detail ||
@@ -135,46 +98,21 @@ const TaskList = () => {
         }
     };
 
-    // --------------------------------------------------
-    // Initial Load
-    // --------------------------------------------------
     useEffect(() => {
         fetchTasks(1, "");
     }, []);
 
-    // --------------------------------------------------
-    // Smooth Backend Search
-    // --------------------------------------------------
     useEffect(() => {
         const timer = setTimeout(() => {
             setPage(1);
-
-            fetchTasks(
-                1,
-                search
-            );
+            fetchTasks(1, search);
         }, 300);
 
-        return () => {
-            clearTimeout(timer);
-        };
+        return () => clearTimeout(timer);
     }, [search]);
 
-    // --------------------------------------------------
-    // Page Change
-    // --------------------------------------------------
-    useEffect(() => {
-        fetchTasks(
-            page,
-            search
-        );
-    }, [page]);
-
-    // --------------------------------------------------
-    // Frontend Status + Priority Filter
-    // --------------------------------------------------
-    const filteredTasks = tasks.filter(
-        (task) => {
+    const normalizedTasks = useMemo(() => {
+        return tasks.filter((task) => {
             const matchesStatus =
                 !status ||
                 task.status
@@ -187,38 +125,82 @@ const TaskList = () => {
                     ?.toLowerCase() ===
                 priority.toLowerCase();
 
-            return (
-                matchesStatus &&
-                matchesPriority
-            );
-        }
-    );
+            return matchesStatus && matchesPriority;
+        });
+    }, [tasks, status, priority]);
 
-    // --------------------------------------------------
-    // Format Date
-    // --------------------------------------------------
+    const employeeRows = useMemo(() => {
+        const grouped = new Map();
+
+        normalizedTasks.forEach((task) => {
+            const employeeId =
+                task.assigned_to_emp_id ||
+                task.employee_id ||
+                task.assigned_to ||
+                task.assigned_to_name ||
+                "unknown";
+
+            const employeeName =
+                task.assigned_to_name || "Unknown Employee";
+
+            if (!grouped.has(employeeId)) {
+                grouped.set(employeeId, {
+                    employeeId,
+                    employeeName,
+                    tasks: [],
+                    creators: new Set(),
+                });
+            }
+
+            const employeeGroup = grouped.get(employeeId);
+            employeeGroup.tasks.push(task);
+
+            if (task.created_by_name) {
+                employeeGroup.creators.add(task.created_by_name);
+            }
+        });
+
+        return Array.from(grouped.values()).map((group) => {
+            const creators = [...group.creators].filter(Boolean);
+            const createdBy = creators.length > 1
+                ? `${creators.length} creators`
+                : creators[0] || "Unknown";
+
+            return {
+                ...group,
+                createdBy,
+            };
+        });
+    }, [normalizedTasks]);
+
+    const pageSize = 10;
+    const totalEmployeeCount = employeeRows.length;
+    const totalPages = Math.max(1, Math.ceil(totalEmployeeCount / pageSize));
+    const currentPageRows = employeeRows.slice(
+        (page - 1) * pageSize,
+        page * pageSize
+    );
+    const startTask = totalEmployeeCount === 0 ? 0 : (page - 1) * pageSize + 1;
+    const endTask = Math.min(page * pageSize, totalEmployeeCount);
+
+    useEffect(() => {
+        setTotalCount(totalEmployeeCount);
+        setNextPage(totalEmployeeCount > page * pageSize ? "next" : null);
+        setPreviousPage(page > 1 ? "previous" : null);
+    }, [employeeRows, totalEmployeeCount, page]);
+
     const formatDate = (date) => {
         if (!date) return "-";
 
-        return new Date(
-            date
-        ).toLocaleDateString(
-            "en-IN",
-            {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-            }
-        );
+        return new Date(date).toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+        });
     };
 
-    // --------------------------------------------------
-    // Priority Styling
-    // --------------------------------------------------
     const priorityClass = (value) => {
-        switch (
-        value?.toLowerCase()
-        ) {
+        switch (value?.toLowerCase()) {
             case "high":
                 return "bg-red-100 text-red-700";
 
@@ -233,13 +215,8 @@ const TaskList = () => {
         }
     };
 
-    // --------------------------------------------------
-    // Status Styling
-    // --------------------------------------------------
     const statusClass = (value) => {
-        switch (
-        value?.toLowerCase()
-        ) {
+        switch (value?.toLowerCase()) {
             case "pending":
                 return "bg-yellow-100 text-yellow-700";
 
@@ -266,28 +243,6 @@ const TaskList = () => {
         setPriority("");
         setPage(1);
     };
-
-    // --------------------------------------------------
-    // Pagination Information
-    // --------------------------------------------------
-    const pageSize = 10;
-
-    const startTask =
-        totalCount === 0
-            ? 0
-            : (page - 1) *
-            pageSize +
-            1;
-
-    const endTask = Math.min(
-        page * pageSize,
-        totalCount
-    );
-
-    const totalPages =
-        Math.ceil(
-            totalCount / pageSize
-        ) || 1;
 
     return (
         <div className="min-h-full bg-gray-50 p-6">
@@ -518,7 +473,7 @@ const TaskList = () => {
 
                     </div>
 
-                ) : filteredTasks.length ===
+                ) : currentPageRows.length ===
                     0 ? (
 
                     <div className="py-16 text-center">
@@ -538,34 +493,22 @@ const TaskList = () => {
 
                     <div className="overflow-x-auto">
 
-                        <table className="w-full min-w-[1000px]">
+                        <table className="w-full min-w-[800px]">
 
                             <thead className="bg-gray-50">
 
                                 <tr>
 
                                     <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-gray-500">
-                                        Task
+                                        Sr. No
                                     </th>
 
                                     <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-gray-500">
-                                        Assigned To
+                                        Name
                                     </th>
 
                                     <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-gray-500">
-                                        Start Date
-                                    </th>
-
-                                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-gray-500">
-                                        Deadline
-                                    </th>
-
-                                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-gray-500">
-                                        Priority
-                                    </th>
-
-                                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-gray-500">
-                                        Status
+                                        Created By
                                     </th>
 
                                     <th className="px-5 py-3 text-center text-xs font-semibold uppercase text-gray-500">
@@ -578,110 +521,45 @@ const TaskList = () => {
 
                             <tbody className="divide-y divide-gray-100">
 
-                                {filteredTasks.map(
-                                    (task) => (
+                                {currentPageRows.map(
+                                    (employee, index) => (
 
                                         <tr
                                             key={
-                                                task.id
+                                                employee.employeeId
                                             }
                                             className="hover:bg-gray-50"
                                         >
 
-                                            {/* TASK */}
-                                            <td className="px-5 py-4">
-
-                                                <p className="max-w-xs truncate text-sm font-semibold text-gray-800">
-                                                    {
-                                                        task.title
-                                                    }
-                                                </p>
-
-                                                <p className="mt-1 text-xs text-gray-400">
-                                                    Task #
-                                                    {
-                                                        task.id
-                                                    }
-                                                </p>
-
+                                            <td className="px-5 py-4 text-sm font-medium text-gray-700">
+                                                {(page - 1) * pageSize + index + 1}
                                             </td>
 
-                                            {/* EMPLOYEE */}
                                             <td className="px-5 py-4">
-
-                                                <p className="text-sm font-medium text-gray-800">
-                                                    {
-                                                        task.assigned_to_name ||
-                                                        "-"
-                                                    }
+                                                <p className="text-sm font-semibold text-gray-800">
+                                                    {employee.employeeName || "Unknown Employee"}
                                                 </p>
-
-                                                <p className="mt-1 text-xs text-gray-500">
-                                                    {
-                                                        task.assigned_to_emp_id ||
-                                                        "-"
-                                                    }
-                                                </p>
-
-                                            </td>
-
-                                            {/* START */}
-                                            <td className="px-5 py-4 text-sm text-gray-600">
-                                                {formatDate(
-                                                    task.start_date
+                                                {employee.employeeId && employee.employeeId !== "unknown" && (
+                                                    <p className="mt-1 text-xs text-gray-500">
+                                                        {employee.employeeId}
+                                                    </p>
                                                 )}
                                             </td>
 
-                                            {/* DEADLINE */}
-                                            <td className="px-5 py-4 text-sm text-gray-600">
-                                                {formatDate(
-                                                    task.deadline
-                                                )}
+                                            <td className="px-5 py-4 text-sm text-gray-700">
+                                                {employee.createdBy || "-"}
                                             </td>
 
-                                            {/* PRIORITY */}
-                                            <td className="px-5 py-4">
-
-                                                <span
-                                                    className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${priorityClass(
-                                                        task.priority
-                                                    )}`}
-                                                >
-                                                    {task.priority ||
-                                                        "No Priority"}
-                                                </span>
-
-                                            </td>
-
-                                            {/* STATUS */}
-                                            <td className="px-5 py-4">
-
-                                                <span
-                                                    className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClass(
-                                                        task.status
-                                                    )}`}
-                                                >
-                                                    {task.status ||
-                                                        "-"}
-                                                </span>
-
-                                            </td>
-
-                                            {/* ACTION */}
                                             <td className="px-5 py-4 text-center">
-
                                                 <button
                                                     type="button"
                                                     onClick={() =>
-                                                        setSelectedTask(
-                                                            task
-                                                        )
+                                                        setSelectedEmployee(employee)
                                                     }
                                                     className="rounded-lg border border-gray-300 px-4 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100"
                                                 >
-                                                    View
+                                                    View Tasks
                                                 </button>
-
                                             </td>
 
                                         </tr>
@@ -799,50 +677,44 @@ const TaskList = () => {
             </div>
 
             {/* ==========================================
-                TASK DETAILS MODAL
+                EMPLOYEE TASKS MODAL
             ========================================== */}
-            {selectedTask && (
+            {selectedEmployee && (
 
                 <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
                     onClick={() =>
-                        setSelectedTask(
-                            null
-                        )
+                        setSelectedEmployee(null)
                     }
                 >
 
                     <div
-                        className="w-full max-w-2xl rounded-xl bg-white shadow-xl"
+                        className="w-full max-w-3xl rounded-xl bg-white shadow-xl"
                         onClick={(e) =>
                             e.stopPropagation()
                         }
                     >
 
-                        {/* MODAL HEADER */}
                         <div className="flex items-center justify-between border-b px-6 py-4">
 
                             <div>
 
                                 <h2 className="text-lg font-semibold text-gray-800">
-                                    Task Details
+                                    {selectedEmployee.employeeName || "Employee Tasks"}
                                 </h2>
 
-                                <p className="text-xs text-gray-500">
-                                    Task #
-                                    {
-                                        selectedTask.id
-                                    }
-                                </p>
+                                {selectedEmployee.employeeId && selectedEmployee.employeeId !== "unknown" && (
+                                    <p className="text-xs text-gray-500">
+                                        {selectedEmployee.employeeId}
+                                    </p>
+                                )}
 
                             </div>
 
                             <button
                                 type="button"
                                 onClick={() =>
-                                    setSelectedTask(
-                                        null
-                                    )
+                                    setSelectedEmployee(null)
                                 }
                                 className="text-2xl text-gray-400 hover:text-gray-700"
                             >
@@ -851,160 +723,113 @@ const TaskList = () => {
 
                         </div>
 
-                        {/* MODAL BODY */}
-                        <div className="space-y-5 px-6 py-6">
+                        <div className="max-h-[70vh] overflow-y-auto px-6 py-5">
 
-                            {/* TITLE */}
-                            <div>
+                            {(() => {
+                                const completedTasks = selectedEmployee.tasks.filter(
+                                    (task) => task.status?.toLowerCase() === "completed"
+                                );
 
-                                <p className="text-xs text-gray-400">
-                                    Title
-                                </p>
+                                const openTasks = selectedEmployee.tasks.filter(
+                                    (task) => task.status?.toLowerCase() !== "completed"
+                                );
 
-                                <p className="mt-1 text-base font-semibold text-gray-800">
-                                    {
-                                        selectedTask.title
-                                    }
-                                </p>
+                                const tabs = [
+                                    { key: "open", label: "Open Tasks", items: openTasks },
+                                    { key: "completed", label: "Completed Tasks", items: completedTasks },
+                                ];
 
-                            </div>
+                                const activeTab = tabs.find((tab) => tab.key === taskTab) || tabs[0];
 
-                            {/* DESCRIPTION */}
-                            <div>
+                                return (
+                                    <div className="space-y-4">
+                                        <div className="flex gap-2 border-b border-gray-200 pb-3">
+                                            {tabs.map((tab) => (
+                                                <button
+                                                    key={tab.key}
+                                                    type="button"
+                                                    onClick={() => setTaskTab(tab.key)}
+                                                    className={`rounded-lg px-4 py-2 text-sm font-medium transition ${taskTab === tab.key
+                                                        ? "bg-ettm-blue text-white"
+                                                        : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}
+                                                >
+                                                    {tab.label}
+                                                    {tab.items.length > 0 && (
+                                                        <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold">
+                                                            {tab.items.length}
+                                                        </span>
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
 
-                                <p className="text-xs text-gray-400">
-                                    Description
-                                </p>
+                                        {activeTab.items.length > 0 ? (
+                                            <div className="space-y-3">
+                                                {activeTab.items.map((task) => (
+                                                    <div
+                                                        key={task.id}
+                                                        className={`rounded-lg border p-4 ${activeTab.key === "completed" ? "border-gray-200 bg-green-50" : "border-gray-200 bg-gray-50"}`}
+                                                    >
+                                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                                            <div className="flex-1">
+                                                                <p className="text-sm font-semibold text-gray-800">
+                                                                    {task.title || "Untitled Task"}
+                                                                </p>
+                                                                <p className="mt-1 text-xs text-gray-500">
+                                                                    Task #{task.id || "-"}
+                                                                </p>
+                                                            </div>
+                                                            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusClass(task.status)}`}>
+                                                                {task.status || "-"}
+                                                            </span>
+                                                        </div>
 
-                                <p className="mt-1 text-sm leading-6 text-gray-700">
-                                    {
-                                        selectedTask.description ||
-                                        "-"
-                                    }
-                                </p>
-
-                            </div>
-
-                            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-
-                                {/* EMPLOYEE */}
-                                <div>
-
-                                    <p className="text-xs text-gray-400">
-                                        Employee
-                                    </p>
-
-                                    <p className="mt-1 text-sm font-semibold">
-                                        {
-                                            selectedTask.assigned_to_name ||
-                                            "-"
-                                        }
-                                    </p>
-
-                                    <p className="text-xs text-gray-500">
-                                        {
-                                            selectedTask.assigned_to_emp_id ||
-                                            "-"
-                                        }
-                                    </p>
-
-                                </div>
-
-                                {/* CREATED BY */}
-                                <div>
-
-                                    <p className="text-xs text-gray-400">
-                                        Created By
-                                    </p>
-
-                                    <p className="mt-1 text-sm font-semibold">
-                                        {
-                                            selectedTask.created_by_name ||
-                                            "-"
-                                        }
-                                    </p>
-
-                                </div>
-
-                                {/* START DATE */}
-                                <div>
-
-                                    <p className="text-xs text-gray-400">
-                                        Start Date
-                                    </p>
-
-                                    <p className="mt-1 text-sm">
-                                        {formatDate(
-                                            selectedTask.start_date
+                                                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                                            <div>
+                                                                <p className="text-[11px] uppercase tracking-wide text-gray-400">Description</p>
+                                                                <p className="mt-1 text-sm text-gray-700">
+                                                                    {task.description || "-"}
+                                                                </p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[11px] uppercase tracking-wide text-gray-400">Priority</p>
+                                                                <span className={`mt-1 inline-block rounded-full px-3 py-1 text-xs font-semibold capitalize ${priorityClass(task.priority)}`}>
+                                                                    {task.priority || "No Priority"}
+                                                                </span>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[11px] uppercase tracking-wide text-gray-400">Start Date</p>
+                                                                <p className="mt-1 text-sm text-gray-700">
+                                                                    {formatDate(task.start_date)}
+                                                                </p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-[11px] uppercase tracking-wide text-gray-400">Deadline</p>
+                                                                <p className="mt-1 text-sm text-gray-700">
+                                                                    {formatDate(task.deadline)}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-500">
+                                                No {activeTab.key === "completed" ? "completed" : "open"} tasks
+                                            </div>
                                         )}
-                                    </p>
-
-                                </div>
-
-                                {/* DEADLINE */}
-                                <div>
-
-                                    <p className="text-xs text-gray-400">
-                                        Deadline
-                                    </p>
-
-                                    <p className="mt-1 text-sm">
-                                        {formatDate(
-                                            selectedTask.deadline
-                                        )}
-                                    </p>
-
-                                </div>
-
-                                {/* PRIORITY */}
-                                <div>
-
-                                    <p className="text-xs text-gray-400">
-                                        Priority
-                                    </p>
-
-                                    <span
-                                        className={`mt-1 inline-block rounded-full px-3 py-1 text-xs font-semibold capitalize ${priorityClass(
-                                            selectedTask.priority
-                                        )}`}
-                                    >
-                                        {selectedTask.priority ||
-                                            "No Priority"}
-                                    </span>
-
-                                </div>
-
-                                {/* STATUS */}
-                                <div>
-
-                                    <p className="text-xs text-gray-400">
-                                        Status
-                                    </p>
-
-                                    <span
-                                        className={`mt-1 inline-block rounded-full px-3 py-1 text-xs font-semibold ${statusClass(
-                                            selectedTask.status
-                                        )}`}
-                                    >
-                                        {selectedTask.status ||
-                                            "-"}
-                                    </span>
-
-                                </div>
-
-                            </div>
+                                    </div>
+                                );
+                            })()}
 
                         </div>
 
-                        {/* MODAL FOOTER */}
                         <div className="flex justify-end border-t px-6 py-4">
 
                             <button
                                 type="button"
                                 onClick={() =>
-                                    setSelectedTask(
-                                        null
-                                    )
+                                    setSelectedEmployee(null)
                                 }
                                 className="rounded-lg bg-ettm-blue px-5 py-2.5 text-sm font-medium text-white hover:opacity-90"
                             >

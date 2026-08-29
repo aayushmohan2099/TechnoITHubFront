@@ -24,6 +24,7 @@ import EmployeeLayout from "./pages/layouts/EmployeeLayout";
 import EmployeeDashboard from "./pages/Employee/EmployeeDashboard";
 import EmployeeAttendance from "./pages/Employee/Attendance";
 import MyTasks from "./pages/Employee/MyTasks";
+import ChangePassword from "./pages/Employee/ChangePassword";
 
 function App() {
   return (
@@ -135,6 +136,10 @@ function App() {
             element={<EmployeeAttendance />}
           />
 
+          <Route
+            path="change-password"
+            element={<ChangePassword />}
+          />
 
           {/* My Tasks - add later */}
 

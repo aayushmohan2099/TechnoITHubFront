@@ -79,9 +79,11 @@ export const resetEmployeePassword = async (employeeId) => {
 export const getAllTasks = async ({
     page = 1,
     search = "",
+    page_size = 1000,
 } = {}) => {
     const params = {
         page,
+        page_size,
     };
 
     if (search.trim()) {
