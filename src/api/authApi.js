@@ -42,5 +42,9 @@ export const updateProfilePicture = async (file) => {
 };
 
 export const deleteProfilePicture = async () => {
-    return Promise.resolve();
+    const response = await axiosInstance.delete(
+        "api/v1/accounts/update-dp/"
+    );
+
+    return response.data;
 };

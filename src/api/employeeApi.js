@@ -104,9 +104,11 @@ export const getAllTasks = async ({
 export const getAttendanceHistory = async ({
     page = 1,
     date = "",
+    page_size = 1000,
 } = {}) => {
     const params = {
         page,
+        page_size,
     };
 
     if (date) {

@@ -9,18 +9,20 @@ const Header = () => {
 
                 {/* Logo / Brand */}
                 <div className="flex items-center gap-3">
-                    <img
-                        src={logo}
-                        alt="ETTM Logo"
-                        className="h-12 w-auto object-contain"
-                    />
+                    {/* Logo wrapped in a styled circle container */}
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gray-50 border border-gray-200 p-1.5 shadow-sm">
+                        <img
+                            src={logo}
+                            alt="ETTM Logo"
+                            className="h-full w-full object-contain"
+                        />
+                    </div>
 
                     <div>
-                        <h1 className="text-lg font-bold text-ettm-blue">
+                        <h1 className="text-xl font-extrabold tracking-wide text-ettm-blue font-sans">
                             ETTM
                         </h1>
-
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs font-medium text-gray-500 tracking-wide">
                             Employee Task & Training Management
                         </p>
                     </div>

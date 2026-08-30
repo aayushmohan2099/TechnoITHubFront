@@ -85,8 +85,14 @@ const Login = () => {
                 response?.role || response?.user?.role || ""
             ).toLowerCase();
 
+            const employeeKey = `user_data_${formData.employee_id.trim()}`;
             const previousUser = (() => {
                 try {
+                    const userFromEmployeeKey = JSON.parse(localStorage.getItem(employeeKey) || "null");
+                    if (userFromEmployeeKey && typeof userFromEmployeeKey === "object") {
+                        return userFromEmployeeKey;
+                    }
+
                     return JSON.parse(localStorage.getItem("user_data") || "{}");
                 } catch (error) {
                     return {};
@@ -112,6 +118,9 @@ const Login = () => {
                 must_change_password: Boolean(response?.must_change_password),
             };
 
+            const currentEmployeeKey = `user_data_${userDetails.employee_id}`;
+            localStorage.setItem(currentEmployeeKey, JSON.stringify(userDetails));
+            localStorage.setItem(`user_data_${userDetails.employee_id}`, JSON.stringify(userDetails));
             localStorage.setItem("access_token", response.access);
             localStorage.setItem("refresh_token", response.refresh);
             localStorage.setItem("employee_id", userDetails.employee_id);

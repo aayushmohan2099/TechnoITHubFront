@@ -9,10 +9,42 @@ import {
 
 const getStoredUser = () => {
     try {
-        return JSON.parse(localStorage.getItem("user_data") || "{}");
+        const currentEmployeeId = localStorage.getItem("employee_id");
+
+        if (!currentEmployeeId) {
+            return {};
+        }
+
+        const userKey = `user_data_${currentEmployeeId}`;
+        const savedUser = JSON.parse(localStorage.getItem(userKey) || "{}");
+
+        if (savedUser?.employee_id && savedUser.employee_id !== currentEmployeeId) {
+            return {};
+        }
+
+        if (savedUser && Object.keys(savedUser).length > 0) {
+            return savedUser;
+        }
+
+        const fallbackUser = JSON.parse(localStorage.getItem("user_data") || "{}");
+        if (fallbackUser?.employee_id && fallbackUser.employee_id === currentEmployeeId) {
+            return fallbackUser;
+        }
+
+        return {};
     } catch (error) {
         return {};
     }
+};
+
+const saveUserForCurrentEmployee = (userData) => {
+    const employeeId = localStorage.getItem("employee_id") || userData?.employee_id || "";
+
+    if (employeeId) {
+        localStorage.setItem(`user_data_${employeeId}`, JSON.stringify(userData));
+    }
+
+    localStorage.setItem("user_data", JSON.stringify(userData));
 };
 
 const normalizeProfilePictureUrl = (value) => {
@@ -92,7 +124,7 @@ const ProfileIcon = () => {
             merged.profile_picture = "";
         }
 
-        localStorage.setItem("user_data", JSON.stringify(merged));
+        saveUserForCurrentEmployee(merged);
         refreshUserData();
     };
 
@@ -161,11 +193,17 @@ const ProfileIcon = () => {
     };
 
     const handleLogout = () => {
+        const currentEmployeeId = localStorage.getItem("employee_id");
+
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
         localStorage.removeItem("role");
         localStorage.removeItem("employee_id");
         localStorage.removeItem("must_change_password");
+
+        if (currentEmployeeId) {
+            localStorage.setItem("last_logged_in_employee_id", currentEmployeeId);
+        }
 
         setOpen(false);
         navigate("/login", { replace: true });

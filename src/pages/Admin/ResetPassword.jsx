@@ -20,6 +20,10 @@ const ResetPassword = () => {
     const [resetResult, setResetResult] = useState(null);
     const [showModal, setShowModal] = useState(false);
 
+    // Visual feedback states
+    const [copied, setCopied] = useState(false);
+    const [downloading, setDownloading] = useState(false);
+
     // --------------------------------------------------
     // Fetch Employees
     // --------------------------------------------------
@@ -32,11 +36,6 @@ const ResetPassword = () => {
                 page: 1,
                 search: searchValue.trim(),
             });
-
-            console.log(
-                "Employees Response:",
-                data
-            );
 
             if (Array.isArray(data)) {
                 setEmployees(data);
@@ -135,11 +134,6 @@ const ResetPassword = () => {
                     selectedEmployee
                 );
 
-            console.log(
-                "Reset Password Response:",
-                response
-            );
-
             setResetResult(response);
 
             setShowModal(true);
@@ -202,8 +196,11 @@ const ResetPassword = () => {
                 resetResult.new_temporary_password
             );
 
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2500);
+
             setSuccessMessage(
-                "Temporary password copied."
+                "Temporary password copied to clipboard!"
             );
         } catch (error) {
             console.error(
@@ -225,9 +222,11 @@ const ResetPassword = () => {
             return;
         }
 
+        setDownloading(true);
+
         const content = `
-Employee Password Reset
-=======================
+Employee Password Reset Credentials
+===================================
 
 Employee ID: ${resetResult.employee_id}
 Temporary Password: ${resetResult.new_temporary_password}
@@ -260,68 +259,76 @@ Please ask the employee to change the temporary password after logging in.
         document.body.removeChild(link);
 
         URL.revokeObjectURL(url);
+
+        setTimeout(() => {
+            setDownloading(false);
+            setSuccessMessage("Credentials downloaded successfully as .txt file.");
+            setTimeout(() => setSuccessMessage(""), 3000);
+        }, 600);
     };
 
     // --------------------------------------------------
-    // Close Modal
+    // Close Modal (Selection clear kar diya hai yahan)
     // --------------------------------------------------
     const closeModal = () => {
         setShowModal(false);
         setResetResult(null);
+        setSelectedEmployee(""); // Selection reset ho jayega
+        setCopied(false);
     };
 
     return (
-        <div className="min-h-full bg-gray-50 p-6">
+        <div className="w-full min-h-full bg-gray-50/50 p-6 lg:p-10">
 
             {/* Header */}
             <div className="mb-6">
 
-                <h1 className="text-2xl font-semibold text-ettm-blue">
+                <h1 className="text-2xl font-bold tracking-tight text-ettm-blue">
                     Reset Employee Password
                 </h1>
 
                 <p className="mt-1 text-sm text-gray-500">
-                    Search for an employee and reset
-                    their password.
+                    Search for an employee from the directory and securely reset their password.
                 </p>
 
             </div>
 
-            {/* Success */}
+            {/* Success Banner */}
             {successMessage &&
                 !showModal && (
-                    <div className="mb-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
+                    <div className="mb-6 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3.5 text-sm font-semibold text-emerald-800 shadow-xs">
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white text-xs">✓</span>
                         {successMessage}
                     </div>
                 )}
 
-            {/* Error */}
+            {/* Error Banner */}
             {errorMessage && (
-                <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                <div className="mb-6 flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3.5 text-sm font-semibold text-rose-800 shadow-xs">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-600 text-white text-xs">!</span>
                     {errorMessage}
                 </div>
             )}
 
-            {/* Main Card */}
-            <div className="max-w-3xl rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            {/* Main Full-Width Responsive Card */}
+            <div className="w-full rounded-2xl border border-gray-200 bg-white p-6 lg:p-8 shadow-xs">
 
                 <h2 className="text-lg font-semibold text-gray-800">
-                    Select Employee
+                    Select Employee Account
                 </h2>
 
                 <p className="mt-1 text-sm text-gray-500">
-                    Search by employee name,
-                    employee ID, or designation.
+                    Search by employee name, employee ID, or designation.
                 </p>
 
-                {/* Search */}
-                <div className="mt-5">
+                {/* Search Box */}
+                <div className="mt-6">
 
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                        Search Employee
+                    <label className="mb-2 block text-xs font-bold uppercase tracking-wider text-gray-600">
+                        Search Directory
                     </label>
 
-                    <div className="flex gap-2">
+                    <div className="flex gap-3">
 
                         <input
                             type="text"
@@ -329,8 +336,8 @@ Please ask the employee to change the temporary password after logging in.
                             onChange={
                                 handleSearchChange
                             }
-                            placeholder="Search name, Employee ID or designation..."
-                            className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
+                            placeholder="Type employee name, ID or designation..."
+                            className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-800 outline-none transition focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
                         />
 
                         {search && (
@@ -339,7 +346,7 @@ Please ask the employee to change the temporary password after logging in.
                                 onClick={
                                     handleClearSearch
                                 }
-                                className="rounded-lg border border-gray-300 px-4 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                                className="rounded-xl border border-gray-300 bg-white px-5 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition"
                             >
                                 Clear
                             </button>
@@ -349,20 +356,20 @@ Please ask the employee to change the temporary password after logging in.
 
                     {search && (
                         <p className="mt-2 text-xs text-gray-400">
-                            Searching all employees for
-                            "{search}"
+                            Filtering records for "{search}"
                         </p>
                     )}
 
                 </div>
 
-                {/* Employee List */}
-                <div className="mt-4 max-h-72 overflow-y-auto rounded-lg border border-gray-200">
+                {/* Employee List Box */}
+                <div className="mt-6 max-h-80 overflow-y-auto rounded-xl border border-gray-200 bg-gray-50/50 divide-y divide-gray-100">
 
                     {loadingEmployees ? (
 
-                        <div className="p-5 text-center text-sm text-gray-500">
-                            Searching employees...
+                        <div className="p-8 text-center text-sm text-gray-500 flex items-center justify-center gap-2">
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-ettm-blue border-t-transparent"></div>
+                            Loading employees list...
                         </div>
 
                     ) : employees.length >
@@ -378,7 +385,7 @@ Please ask the employee to change the temporary password after logging in.
                                 return (
                                     <button
                                         key={
-                                            employee.id
+                                            employee.id || employee.employee_id
                                         }
                                         type="button"
                                         onClick={() =>
@@ -386,42 +393,49 @@ Please ask the employee to change the temporary password after logging in.
                                                 employee.employee_id
                                             )
                                         }
-                                        className={`flex w-full items-center justify-between border-b border-gray-100 px-4 py-4 text-left transition last:border-b-0 ${isSelected
-                                            ? "bg-blue-50"
-                                            : "hover:bg-gray-50"
+                                        className={`flex w-full items-center justify-between px-5 py-4 text-left transition ${isSelected
+                                            ? "bg-blue-50/90 border-l-4 border-ettm-blue shadow-xs"
+                                            : "hover:bg-white bg-transparent"
                                             }`}
                                     >
 
-                                        <div>
-
-                                            <p className="text-sm font-semibold text-gray-800">
-                                                {
-                                                    employee.name
-                                                }
-                                            </p>
-
-                                            <div className="mt-1 flex flex-wrap gap-3 text-xs text-gray-500">
-
-                                                <span>
-                                                    ID:{" "}
-                                                    {
-                                                        employee.employee_id
-                                                    }
-                                                </span>
-
-                                                <span>
-                                                    {
-                                                        employee.designation ||
-                                                        "-"
-                                                    }
-                                                </span>
-
+                                        <div className="flex items-center gap-3">
+                                            {/* Selection Indicator Icon Symbol */}
+                                            <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold transition ${
+                                                isSelected ? "bg-ettm-blue text-white" : "border border-gray-300 bg-white text-transparent"
+                                            }`}>
+                                                ✓
                                             </div>
 
+                                            <div>
+                                                <p className="text-sm font-semibold text-gray-900">
+                                                    {
+                                                        employee.name
+                                                    }
+                                                </p>
+
+                                                <div className="mt-0.5 flex flex-wrap gap-3 text-xs text-gray-500">
+
+                                                    <span>
+                                                        ID: <strong className="text-gray-700">{employee.employee_id}</strong>
+                                                    </span>
+
+                                                    <span>•</span>
+
+                                                    <span>
+                                                        {
+                                                            employee.designation ||
+                                                            "General Staff"
+                                                        }
+                                                    </span>
+
+                                                </div>
+
+                                            </div>
                                         </div>
 
                                         {isSelected && (
-                                            <span className="text-xs font-semibold text-ettm-blue">
+                                            <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-ettm-blue">
                                                 Selected
                                             </span>
                                         )}
@@ -433,7 +447,7 @@ Please ask the employee to change the temporary password after logging in.
 
                     ) : (
 
-                        <div className="p-5 text-center">
+                        <div className="p-8 text-center">
 
                             <p className="text-sm font-medium text-gray-500">
                                 No employees found.
@@ -441,7 +455,7 @@ Please ask the employee to change the temporary password after logging in.
 
                             {search && (
                                 <p className="mt-1 text-xs text-gray-400">
-                                    No employee matched
+                                    No records matched
                                     "{search}".
                                 </p>
                             )}
@@ -452,31 +466,28 @@ Please ask the employee to change the temporary password after logging in.
 
                 </div>
 
-                {/* Selected Employee */}
+                {/* Selected Employee Info Box */}
                 {selectedEmployee && (
-                    <div className="mt-5 rounded-lg border border-blue-200 bg-blue-50 p-4">
+                    <div className="mt-6 rounded-xl border border-blue-200 bg-blue-50/70 p-4 transition">
 
-                        <p className="text-xs font-semibold uppercase tracking-wide text-ettm-blue">
-                            Selected Employee
+                        <p className="text-xs font-bold uppercase tracking-wider text-ettm-blue">
+                            Selected Target Account
                         </p>
 
-                        <div className="mt-3">
-
-                            <p className="text-sm text-gray-500">
-                                Employee ID
+                        <div className="mt-1 flex items-center justify-between">
+                            <p className="text-sm text-gray-600">
+                                Employee ID: <span className="font-bold text-gray-900">{selectedEmployee}</span>
                             </p>
-
-                            <p className="text-base font-semibold text-gray-800">
-                                {selectedEmployee}
-                            </p>
-
+                            <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">
+                                Ready to Reset ✓
+                            </span>
                         </div>
 
                     </div>
                 )}
 
-                {/* Reset Button */}
-                <div className="mt-6 flex justify-end">
+                {/* Reset Button Container */}
+                <div className="mt-8 flex justify-end">
 
                     <button
                         type="button"
@@ -487,10 +498,13 @@ Please ask the employee to change the temporary password after logging in.
                             !selectedEmployee ||
                             resetting
                         }
-                        className="rounded-lg bg-ettm-blue px-6 py-3 text-sm font-medium text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex items-center gap-2 rounded-xl bg-ettm-blue px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                     >
+                        {resetting && (
+                            <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                        )}
                         {resetting
-                            ? "Resetting..."
+                            ? "Processing Reset..."
                             : "Reset Password"}
                     </button>
 
@@ -502,24 +516,23 @@ Please ask the employee to change the temporary password after logging in.
             {showModal &&
                 resetResult && (
 
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
 
-                        <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+                        <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden border border-gray-100">
 
                             {/* Modal Header */}
-                            <div className="border-b border-gray-200 px-6 py-5">
+                            <div className="border-b border-gray-200 px-6 py-4 bg-gray-50">
 
                                 <div className="flex items-center justify-between">
 
                                     <div>
 
-                                        <h2 className="text-lg font-semibold text-gray-800">
-                                            Password Reset Successfully
+                                        <h2 className="text-base font-bold text-gray-900">
+                                            Password Reset Successful
                                         </h2>
 
-                                        <p className="mt-1 text-sm text-gray-500">
-                                            Save or copy the
-                                            temporary password.
+                                        <p className="mt-0.5 text-xs text-gray-500">
+                                            Temporary credentials generated securely.
                                         </p>
 
                                     </div>
@@ -529,9 +542,9 @@ Please ask the employee to change the temporary password after logging in.
                                         onClick={
                                             closeModal
                                         }
-                                        className="text-xl text-gray-400 hover:text-gray-700"
+                                        className="h-8 w-8 rounded-full bg-gray-200 text-gray-600 hover:bg-gray-300 flex items-center justify-center font-bold transition"
                                     >
-                                        ×
+                                        ✕
                                     </button>
 
                                 </div>
@@ -539,11 +552,11 @@ Please ask the employee to change the temporary password after logging in.
                             </div>
 
                             {/* Modal Body */}
-                            <div className="space-y-5 px-6 py-6">
+                            <div className="space-y-4 px-6 py-5">
 
-                                <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+                                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3.5">
 
-                                    <p className="text-sm font-medium text-green-700">
+                                    <p className="text-xs font-semibold text-emerald-800">
                                         {
                                             resetResult.message
                                         }
@@ -554,11 +567,11 @@ Please ask the employee to change the temporary password after logging in.
                                 {/* Employee ID */}
                                 <div>
 
-                                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                    <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-500">
                                         Employee ID
                                     </p>
 
-                                    <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                                    <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
 
                                         <p className="font-semibold text-gray-800">
                                             {
@@ -573,15 +586,15 @@ Please ask the employee to change the temporary password after logging in.
                                 {/* Temporary Password */}
                                 <div>
 
-                                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                    <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-500">
                                         New Temporary Password
                                     </p>
 
                                     <div className="flex items-center gap-2">
 
-                                        <div className="flex-1 rounded-lg border border-gray-300 bg-gray-50 px-4 py-3">
+                                        <div className="flex-1 rounded-xl border border-gray-300 bg-gray-50 px-4 py-3">
 
-                                            <p className="break-all font-mono text-sm font-semibold text-gray-800">
+                                            <p className="break-all font-mono text-sm font-bold text-gray-900">
                                                 {
                                                     resetResult.new_temporary_password
                                                 }
@@ -594,21 +607,23 @@ Please ask the employee to change the temporary password after logging in.
                                             onClick={
                                                 handleCopyPassword
                                             }
-                                            className="rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                            className={`rounded-xl border px-4.5 py-3 text-xs font-bold transition-all active:scale-95 ${
+                                                copied
+                                                    ? "border-emerald-500 bg-emerald-600 text-white shadow-sm"
+                                                    : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                                            }`}
                                         >
-                                            Copy
+                                            {copied ? "Copied! ✓" : "Copy"}
                                         </button>
 
                                     </div>
 
                                 </div>
 
-                                <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4">
+                                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5">
 
-                                    <p className="text-xs leading-5 text-yellow-700">
-                                        This temporary password
-                                        should be shared securely
-                                        with the employee.
+                                    <p className="text-xs leading-relaxed text-amber-800 font-medium">
+                                        ⚠️ Save or download this password now. It will not be shown again.
                                     </p>
 
                                 </div>
@@ -616,16 +631,17 @@ Please ask the employee to change the temporary password after logging in.
                             </div>
 
                             {/* Modal Footer */}
-                            <div className="flex justify-end gap-3 border-t border-gray-200 px-6 py-4">
+                            <div className="flex justify-end gap-3 border-t border-gray-200 px-6 py-4 bg-gray-50">
 
                                 <button
                                     type="button"
                                     onClick={
                                         handleDownload
                                     }
-                                    className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                    disabled={downloading}
+                                    className="rounded-xl border border-gray-300 bg-white px-4.5 py-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
                                 >
-                                    Download
+                                    {downloading ? "Downloading... ⏳" : "Download .txt"}
                                 </button>
 
                                 <button
@@ -633,7 +649,7 @@ Please ask the employee to change the temporary password after logging in.
                                     onClick={
                                         closeModal
                                     }
-                                    className="rounded-lg bg-ettm-blue px-5 py-2.5 text-sm font-medium text-white hover:opacity-90"
+                                    className="rounded-xl bg-ettm-blue px-5 py-2.5 text-xs font-semibold text-white hover:opacity-90 transition"
                                 >
                                     Done
                                 </button>

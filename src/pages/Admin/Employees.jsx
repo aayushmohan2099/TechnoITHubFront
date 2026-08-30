@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 
-import Card from "../../components/common/Card";
 import Table from "../../components/common/Table";
 
 import { getAllEmployees } from "../../api/employeeApi";
@@ -130,7 +129,14 @@ const Employees = () => {
     // --------------------------------------------------
     // Table Columns
     // --------------------------------------------------
+    const pageSize = 10;
+
     const columns = [
+        {
+            key: "srNo",
+            label: "Sr. No.",
+            render: (_, index) => (page - 1) * pageSize + index + 1,
+        },
         {
             key: "employee_id",
             label: "Employee ID",
@@ -171,8 +177,6 @@ const Employees = () => {
     // --------------------------------------------------
     // Pagination Information
     // --------------------------------------------------
-    const pageSize = 10;
-
     const startEmployee =
         totalCount === 0
             ? 0
@@ -187,105 +191,46 @@ const Employees = () => {
         Math.ceil(totalCount / pageSize) || 1;
 
     return (
-        <div className="p-6">
+        <div className="w-full min-h-full bg-gray-50/50 p-6 lg:p-10">
 
             {/* Page Header */}
             <div className="mb-6">
-                <h1 className="text-2xl font-bold text-gray-900">
+                <h1 className="text-2xl font-bold tracking-tight text-ettm-blue">
                     See Employees
                 </h1>
 
                 <p className="mt-1 text-sm text-gray-500">
-                    View and search all employees
-                    registered in the system.
+                    View and search all employees registered in the system.
                 </p>
             </div>
 
             {/* Error */}
             {error && (
-                <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-
-                    <p className="text-sm text-red-600">
+                <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3.5 shadow-xs">
+                    <p className="text-sm font-semibold text-red-700">
                         {error}
                     </p>
 
                     <button
                         type="button"
                         onClick={fetchEmployees}
-                        className="mt-2 text-sm font-medium text-red-700 underline"
+                        className="mt-2 text-sm font-medium text-red-800 underline hover:text-red-900"
                     >
                         Try Again
                     </button>
                 </div>
             )}
 
-            {/* Statistics */}
-            <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-
-                {/* Total Employees */}
-                <Card padding="medium">
-                    <div>
-                        <p className="text-sm font-medium text-gray-500">
-                            Total Employees
-                        </p>
-
-                        <p className="mt-2 text-3xl font-bold text-ettm-blue">
-                            {loading
-                                ? "..."
-                                : totalCount}
-                        </p>
-                    </div>
-                </Card>
-
-                {/* Showing */}
-                <Card padding="medium">
-                    <div>
-                        <p className="text-sm font-medium text-gray-500">
-                            Showing
-                        </p>
-
-                        <p className="mt-2 text-3xl font-bold text-green-600">
-                            {loading
-                                ? "..."
-                                : employees.length}
-                        </p>
-
-                        <p className="mt-1 text-xs text-gray-400">
-                            Employees on this page
-                        </p>
-                    </div>
-                </Card>
-
-                {/* Current Page */}
-                <Card padding="medium">
-                    <div>
-                        <p className="text-sm font-medium text-gray-500">
-                            Current Page
-                        </p>
-
-                        <p className="mt-2 text-3xl font-bold text-gray-900">
-                            {loading
-                                ? "..."
-                                : `${page} / ${totalPages}`}
-                        </p>
-                    </div>
-                </Card>
-
-            </div>
-
-            {/* Search */}
-            <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-
+            {/* Search Bar Section */}
+            <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-6 shadow-xs">
                 <div className="mb-4 flex items-center justify-between">
-
                     <div>
-                        <h2 className="text-base font-semibold text-gray-800">
+                        <h2 className="text-base font-semibold text-gray-900">
                             Search Employees
                         </h2>
 
-                        <p className="mt-1 text-xs text-gray-500">
-                            Search by employee name,
-                            employee ID, or designation.
+                        <p className="mt-0.5 text-xs text-gray-500">
+                            Search by employee name, employee ID, or designation.
                         </p>
                     </div>
 
@@ -293,7 +238,7 @@ const Employees = () => {
                         <button
                             type="button"
                             onClick={handleClearSearch}
-                            className="text-sm font-medium text-ettm-blue hover:underline"
+                            className="text-xs font-semibold text-ettm-blue hover:underline"
                         >
                             Clear Search
                         </button>
@@ -301,43 +246,41 @@ const Employees = () => {
                 </div>
 
                 <div>
-                    <label className="mb-2 block text-sm font-medium text-gray-700">
-                        Search
-                    </label>
-
                     <input
                         type="text"
                         value={search}
                         onChange={handleSearchChange}
                         placeholder="Search name, employee ID or designation..."
-                        className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
+                        className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-800 outline-none transition focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
                     />
                 </div>
 
                 {search && (
                     <p className="mt-2 text-xs text-gray-400">
-                        Searching for: "{search}"
+                        Searching records for: "{search}"
                     </p>
                 )}
             </div>
 
-            {/* Employee Table */}
-            <Card
-                title="Employee List"
-                subtitle={
-                    totalCount > 0
-                        ? `Showing ${startEmployee}-${endEmployee} of ${totalCount} employees`
-                        : "No employees found."
-                }
-                padding="none"
-            >
+            {/* Employee Table Section (Card removed, direct clean container) */}
+            <div className="w-full rounded-2xl border border-gray-200 bg-white shadow-xs overflow-hidden">
+                <div className="border-b border-gray-200 px-6 py-4 bg-gray-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                        <h3 className="text-base font-bold text-gray-900">
+                            Employee Directory List
+                        </h3>
+                        <p className="text-xs text-gray-500">
+                            {totalCount > 0
+                                ? `Showing ${startEmployee}-${endEmployee} of ${totalCount} employees`
+                                : "No employees found."}
+                        </p>
+                    </div>
+                </div>
 
                 {loading ? (
-                    <div className="px-5 py-10 text-center">
-
+                    <div className="px-5 py-12 text-center">
                         <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-ettm-blue" />
-
-                        <p className="mt-3 text-sm text-gray-500">
+                        <p className="mt-3 text-sm text-gray-500 font-medium">
                             Loading employees...
                         </p>
                     </div>
@@ -356,31 +299,29 @@ const Employees = () => {
 
                         {/* Pagination */}
                         {totalCount > 0 && (
-                            <div className="flex flex-col gap-3 border-t border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-
+                            <div className="flex flex-col gap-3 border-t border-gray-200 px-6 py-4 sm:flex-row sm:items-center sm:justify-between bg-gray-50/50">
                                 <div>
                                     <p className="text-sm text-gray-500">
                                         Showing{" "}
-                                        <span className="font-medium text-gray-700">
+                                        <span className="font-semibold text-gray-800">
                                             {startEmployee}
                                         </span>
                                         {" - "}
-                                        <span className="font-medium text-gray-700">
+                                        <span className="font-semibold text-gray-800">
                                             {endEmployee}
                                         </span>
                                         {" of "}
-                                        <span className="font-medium text-gray-700">
+                                        <span className="font-semibold text-gray-800">
                                             {totalCount}
                                         </span>
                                     </p>
 
-                                    <p className="mt-1 text-xs text-gray-400">
+                                    <p className="mt-0.5 text-xs text-gray-400">
                                         Page {page} of {totalPages}
                                     </p>
                                 </div>
 
                                 <div className="flex gap-2">
-
                                     {/* Previous */}
                                     <button
                                         type="button"
@@ -397,13 +338,13 @@ const Employees = () => {
                                                 )
                                             )
                                         }
-                                        className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                        className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 shadow-xs"
                                     >
                                         Previous
                                     </button>
 
                                     {/* Current Page */}
-                                    <div className="flex min-w-10 items-center justify-center rounded-lg bg-ettm-blue px-4 py-2 text-sm font-semibold text-white">
+                                    <div className="flex min-w-10 items-center justify-center rounded-xl bg-ettm-blue px-4 py-2 text-xs font-bold text-white shadow-xs">
                                         {page}
                                     </div>
 
@@ -421,18 +362,16 @@ const Employees = () => {
                                                     current + 1
                                             )
                                         }
-                                        className="rounded-lg bg-ettm-blue px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                                        className="rounded-xl bg-ettm-blue px-4 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 shadow-xs"
                                     >
                                         Next
                                     </button>
-
                                 </div>
                             </div>
                         )}
                     </>
                 )}
-
-            </Card>
+            </div>
         </div>
     );
 };
