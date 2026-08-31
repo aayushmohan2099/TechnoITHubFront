@@ -242,10 +242,7 @@ const Login = () => {
                 JSON.stringify(userDetails)
             );
 
-            localStorage.setItem(
-                currentEmployeeKey,
-                JSON.stringify(userDetails)
-            );
+           
 
             if (userRole === "admin") {
                 navigate("/admin/dashboard", {
