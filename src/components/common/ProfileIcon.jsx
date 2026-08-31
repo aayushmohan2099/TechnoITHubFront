@@ -53,8 +53,16 @@ const normalizeProfilePictureUrl = (value) => {
     }
     let trimmedValue = value.trim();
     
-    // Agar URL relative hai (jaise /media/...), toh backend domain jod do
-    if (trimmedValue.startsWith("/")) {
+    // Agar URL blob: se start ho raha hai toh waise hi rehne do
+    if (trimmedValue.startsWith("blob:")) {
+        return trimmedValue;
+    }
+
+    // Agar URL mein port `:14250` nahi hai, toh use jodh do
+    if (trimmedValue.startsWith("http://66.116.207.88/") && !trimmedValue.includes(":14250")) {
+        trimmedValue = trimmedValue.replace("http://66.116.207.88/", "http://66.116.207.88:14250/");
+    } else if (trimmedValue.startsWith("/")) {
+        // Agar relative URL hai
         trimmedValue = `http://66.116.207.88:14250${trimmedValue}`;
     }
     
@@ -100,22 +108,20 @@ const ProfileIcon = () => {
         };
     }, []);
 
-    const refreshUserData = () => {
-        setUserData(getStoredUser());
-    };
-
+    // 🚀 FIXED: Direct State Update taaki UI bina refresh ke foran update ho
     const handleProfileUpdate = (updatedData) => {
-        const current = getStoredUser();
-        const merged = { ...current, ...updatedData };
+        setUserData((prev) => {
+            const merged = { ...prev, ...updatedData };
 
-        if (merged.profile_picture) {
-            merged.profile_picture = normalizeProfilePictureUrl(merged.profile_picture);
-        } else {
-            merged.profile_picture = "";
-        }
+            if (merged.profile_picture) {
+                merged.profile_picture = normalizeProfilePictureUrl(merged.profile_picture);
+            } else {
+                merged.profile_picture = "";
+            }
 
-        saveUserForCurrentEmployee(merged);
-        refreshUserData();
+            saveUserForCurrentEmployee(merged);
+            return merged;
+        });
     };
 
     const handleProfilePhotoChange = async (event) => {
@@ -130,6 +136,8 @@ const ProfileIcon = () => {
         try {
             setUploading(true);
             setImageFailed(false);
+            
+            // 1. Instant local preview dikhane ke liye
             handleProfileUpdate({
                 profile_picture: localPreview,
                 name: userName,
@@ -148,6 +156,7 @@ const ProfileIcon = () => {
             const finalImageUrl = normalizeProfilePictureUrl(rawImageUrl) || localPreview;
             const serverUser = response?.user || response?.data?.user || {};
 
+            // 2. Server response aane ke baad permanent URL se update karna
             handleProfileUpdate({
                 profile_picture: finalImageUrl,
                 name: response?.name || serverUser?.name || userName,
@@ -155,11 +164,6 @@ const ProfileIcon = () => {
             });
         } catch (error) {
             console.error("Profile picture upload failed:", error);
-            handleProfileUpdate({
-                profile_picture: localPreview,
-                name: userName,
-                role: userRole,
-            });
             alert(error?.response?.data?.detail || "Unable to upload profile picture.");
         } finally {
             setUploading(false);
