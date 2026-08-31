@@ -180,15 +180,7 @@ const Login = () => {
                 response?.url ||
                 "";
 
-<<<<<<< Updated upstream
-            const safeProfilePicture =
-                profilePictureFromResponse &&
-                !profilePictureFromResponse.includes("66.116.207.88")
-                    ? profilePictureFromResponse
-                    : previousUser?.profile_picture || "";
-=======
             const safeProfilePicture = profilePictureFromResponse || previousUser.profile_picture || "";
->>>>>>> Stashed changes
 
             const userDetails = {
                 employee_id:
@@ -211,45 +203,6 @@ const Login = () => {
                 ),
             };
 
-<<<<<<< Updated upstream
-            const currentEmployeeKey =
-                `user_data_${userDetails.employee_id}`;
-
-            localStorage.setItem(
-                "access_token",
-                response.access
-            );
-
-            localStorage.setItem(
-                "refresh_token",
-                response.refresh
-            );
-
-            localStorage.setItem(
-                "employee_id",
-                userDetails.employee_id
-            );
-
-            localStorage.setItem(
-                "role",
-                userRole
-            );
-
-            localStorage.setItem(
-                "must_change_password",
-                String(userDetails.must_change_password)
-            );
-
-            localStorage.setItem(
-                "user_data",
-                JSON.stringify(userDetails)
-            );
-
-            localStorage.setItem(
-                currentEmployeeKey,
-                JSON.stringify(userDetails)
-            );
-=======
             const currentEmployeeKey = `user_data_${userDetails.employee_id}`;
             localStorage.setItem(currentEmployeeKey, JSON.stringify(userDetails));
             localStorage.setItem("access_token", response.access);
@@ -258,7 +211,6 @@ const Login = () => {
             localStorage.setItem("role", userRole);
             localStorage.setItem("must_change_password", String(userDetails.must_change_password));
             localStorage.setItem("user_data", JSON.stringify(userDetails));
->>>>>>> Stashed changes
 
             if (userRole === "admin") {
                 navigate("/admin/dashboard", {
@@ -320,10 +272,6 @@ const Login = () => {
                     padding="large"
                     className="rounded-2xl border border-gray-100 bg-white shadow-xl"
                 >
-<<<<<<< Updated upstream
-                    {/* Logo */}
-=======
->>>>>>> Stashed changes
                     <div className="mb-4 flex justify-center">
                         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-ettm-blue/10 p-3 shadow-sm">
                             <img
@@ -334,10 +282,6 @@ const Login = () => {
                         </div>
                     </div>
 
-<<<<<<< Updated upstream
-                    {/* Heading */}
-=======
->>>>>>> Stashed changes
                     <div className="mb-6 text-center">
                         <h2 className="text-2xl font-bold text-gray-900">
                             Login
@@ -420,10 +364,6 @@ const Login = () => {
                             required
                         />
 
-<<<<<<< Updated upstream
-                        {/* Password */}
-=======
->>>>>>> Stashed changes
                         <div className="relative">
                             <Input
                                 label="Password"
@@ -464,10 +404,6 @@ const Login = () => {
                             </button>
                         </div>
 
-<<<<<<< Updated upstream
-                        {/* Login button */}
-=======
->>>>>>> Stashed changes
                         <Button
                             type="submit"
                             variant="primary"

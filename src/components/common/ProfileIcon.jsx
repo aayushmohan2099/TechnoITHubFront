@@ -47,32 +47,17 @@ const saveUserForCurrentEmployee = (userData) => {
     localStorage.setItem("user_data", JSON.stringify(userData));
 };
 
-// 🛠️ Yahan port fix logic add kar di gayi hai
 const normalizeProfilePictureUrl = (value) => {
     if (!value || typeof value !== "string") {
         return "";
     }
-
     let trimmedValue = value.trim();
-    if (!trimmedValue || ["null", "undefined", ""].includes(trimmedValue.toLowerCase())) {
-        return "";
+    
+    // Agar URL relative hai (jaise /media/...), toh backend domain jod do
+    if (trimmedValue.startsWith("/")) {
+        trimmedValue = `http://66.116.207.88:14250${trimmedValue}`;
     }
-
-    if (trimmedValue.startsWith("blob:") || trimmedValue.startsWith("data:")) {
-        return trimmedValue;
-    }
-
-    // Agar URL me IP hai par port number missing hai, toh automatic `:14250` jod do
-    if (trimmedValue.includes("66.116.207.88") && !trimmedValue.includes("66.116.207.88:")) {
-        trimmedValue = trimmedValue.replace("66.116.207.88", "66.116.207.88:14250");
-    }
- 
- 
-
-    if (trimmedValue.startsWith("http://") || trimmedValue.startsWith("https://") || trimmedValue.startsWith("/")) {
-        return trimmedValue;
-    }
-
+    
     return trimmedValue;
 };
 
@@ -91,7 +76,8 @@ const ProfileIcon = () => {
     const userName = storedUserName || storedEmployeeId || "User";
     const userRole =
         (userData?.role || localStorage.getItem("role") || "employee").toLowerCase();
-    const profilePicture = userData?.profile_picture || "";
+    const userDP = userData?.profile_picture || "";
+    const profilePicture = normalizeProfilePictureUrl(userDP);
 
     useEffect(() => {
         setImageFailed(false);
