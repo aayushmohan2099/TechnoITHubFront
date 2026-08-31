@@ -7,6 +7,8 @@ import Input from "../components/common/Input";
 import Button from "../components/common/Button";
 
 import logo from "../assets/thlogo.png";
+import AppBackground from "./AppBackground";
+
 
 import { loginUser } from "../api/authApi";
 
@@ -180,7 +182,11 @@ const Login = () => {
                 response?.url ||
                 "";
 
-            const safeProfilePicture = profilePictureFromResponse || previousUser.profile_picture || "";
+            const safeProfilePicture =
+                profilePictureFromResponse &&
+                !profilePictureFromResponse.includes("66.116.207.88")
+                    ? profilePictureFromResponse
+                    : previousUser?.profile_picture || "";
 
             const userDetails = {
                 employee_id:
@@ -203,14 +209,43 @@ const Login = () => {
                 ),
             };
 
-            const currentEmployeeKey = `user_data_${userDetails.employee_id}`;
-            localStorage.setItem(currentEmployeeKey, JSON.stringify(userDetails));
-            localStorage.setItem("access_token", response.access);
-            localStorage.setItem("refresh_token", response.refresh);
-            localStorage.setItem("employee_id", userDetails.employee_id);
-            localStorage.setItem("role", userRole);
-            localStorage.setItem("must_change_password", String(userDetails.must_change_password));
-            localStorage.setItem("user_data", JSON.stringify(userDetails));
+            const currentEmployeeKey =
+                `user_data_${userDetails.employee_id}`;
+
+            localStorage.setItem(
+                "access_token",
+                response.access
+            );
+
+            localStorage.setItem(
+                "refresh_token",
+                response.refresh
+            );
+
+            localStorage.setItem(
+                "employee_id",
+                userDetails.employee_id
+            );
+
+            localStorage.setItem(
+                "role",
+                userRole
+            );
+
+            localStorage.setItem(
+                "must_change_password",
+                String(userDetails.must_change_password)
+            );
+
+            localStorage.setItem(
+                "user_data",
+                JSON.stringify(userDetails)
+            );
+
+            localStorage.setItem(
+                currentEmployeeKey,
+                JSON.stringify(userDetails)
+            );
 
             if (userRole === "admin") {
                 navigate("/admin/dashboard", {
@@ -266,12 +301,14 @@ const Login = () => {
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+         <AppBackground>
+        <div className="flex min-h-screen items-center justify-center  px-4">
             <div className="w-full max-w-md">
                 <Card
                     padding="large"
                     className="rounded-2xl border border-gray-100 bg-white shadow-xl"
                 >
+                    {/* Logo */}
                     <div className="mb-4 flex justify-center">
                         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-ettm-blue/10 p-3 shadow-sm">
                             <img
@@ -282,6 +319,7 @@ const Login = () => {
                         </div>
                     </div>
 
+                    {/* Heading */}
                     <div className="mb-6 text-center">
                         <h2 className="text-2xl font-bold text-gray-900">
                             Login
@@ -364,6 +402,7 @@ const Login = () => {
                             required
                         />
 
+                        {/* Password */}
                         <div className="relative">
                             <Input
                                 label="Password"
@@ -404,6 +443,7 @@ const Login = () => {
                             </button>
                         </div>
 
+                        {/* Login button */}
                         <Button
                             type="submit"
                             variant="primary"
@@ -420,6 +460,7 @@ const Login = () => {
                 </Card>
             </div>
         </div>
+        </AppBackground>
     );
 };
 
