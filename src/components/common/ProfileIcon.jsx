@@ -61,9 +61,11 @@ const normalizeProfilePictureUrl = (value) => {
         return trimmedValue;
     }
 
-    if (trimmedValue.includes("66.116.207.88")) {
-        return "";
+     if (trimmedValue.includes("66.116.207.88") && !trimmedValue.includes("66.116.207.88:")) {
+        trimmedValue = trimmedValue.replace("66.116.207.88", "66.116.207.88:14250");
     }
+ 
+ 
 
     if (trimmedValue.startsWith("http://") || trimmedValue.startsWith("https://") || trimmedValue.startsWith("/")) {
         return trimmedValue;
