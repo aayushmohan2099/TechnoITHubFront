@@ -1,322 +1,87 @@
 import React, { useEffect, useRef, useState } from "react";
 import { punchAttendance } from "../../api/employeeApi";
 
-// Active punch-in state
-const ATTENDANCE_STORAGE_KEY = "employee_attendance";
-
-// Completed attendance marker
-const ATTENDANCE_COMPLETED_KEY =
-    "attendance_completed_today";
-
 const Attendance = () => {
-    // --------------------------------------------------
-    // Get today's date
-    // YYYY-MM-DD
-    // --------------------------------------------------
-    const getTodayKey = () => {
-        const today = new Date();
+    const [attendance, setAttendance] = useState({
+        status: "Not Started",
+        punchInTime: null,
+        punchOutTime: null,
+        totalSeconds: 0,
+    });
 
-        return `${today.getFullYear()}-${String(
-            today.getMonth() + 1
-        ).padStart(2, "0")}-${String(
-            today.getDate()
-        ).padStart(2, "0")}`;
-    };
-
-    // --------------------------------------------------
-    // Check whether THIS employee already completed
-    // attendance today
-    // --------------------------------------------------
-    const getCompletedAttendance = () => {
-        const saved = localStorage.getItem(
-            ATTENDANCE_COMPLETED_KEY
-        );
-
-        if (!saved) {
-            return null;
-        }
-
-        try {
-            const parsed = JSON.parse(saved);
-
-            const currentEmployeeId =
-                localStorage.getItem(
-                    "employee_id"
-                );
-
-            // ------------------------------------------
-            // Old day's record
-            // Remove automatically
-            // ------------------------------------------
-            if (
-                parsed.date !== getTodayKey()
-            ) {
-                localStorage.removeItem(
-                    ATTENDANCE_COMPLETED_KEY
-                );
-
-                return null;
-            }
-
-            // ------------------------------------------
-            // Same day but another employee
-            // Don't block that employee
-            // ------------------------------------------
-            if (
-                parsed.employee_id !==
-                currentEmployeeId
-            ) {
-                return null;
-            }
-
-            if (parsed.completed === true) {
-                return parsed;
-            }
-
-            return null;
-        } catch (error) {
-            console.error(
-                "Invalid completed attendance data:",
-                error
-            );
-
-            localStorage.removeItem(
-                ATTENDANCE_COMPLETED_KEY
-            );
-
-            return null;
-        }
-    };
-
-    // --------------------------------------------------
-    // Initial Attendance
-    // --------------------------------------------------
-    const [attendance, setAttendance] =
-        useState(() => {
-            // ------------------------------------------
-            // First check if attendance was already
-            // completed today
-            // ------------------------------------------
-            const completedAttendance =
-                getCompletedAttendance();
-
-            if (completedAttendance) {
-                return {
-                    date: getTodayKey(),
-                    status: "Completed",
-
-                    punchInTime:
-                        completedAttendance.punchInTime ||
-                        null,
-
-                    punchOutTime:
-                        completedAttendance.punchOutTime ||
-                        null,
-
-                    totalSeconds: Number(
-                        completedAttendance.totalSeconds ||
-                        0
-                    ),
-                };
-            }
-
-            // ------------------------------------------
-            // Otherwise check active punch-in
-            // ------------------------------------------
-            const savedAttendance =
-                localStorage.getItem(
-                    ATTENDANCE_STORAGE_KEY
-                );
-
-            if (savedAttendance) {
-                try {
-                    const parsedAttendance =
-                        JSON.parse(
-                            savedAttendance
-                        );
-
-                    // Restore only today's
-                    // active attendance
-                    if (
-                        parsedAttendance.date ===
-                        getTodayKey()
-                    ) {
-                        return parsedAttendance;
-                    }
-
-                    // Remove yesterday's
-                    // active attendance
-                    localStorage.removeItem(
-                        ATTENDANCE_STORAGE_KEY
-                    );
-                } catch (error) {
-                    console.error(
-                        "Invalid attendance data:",
-                        error
-                    );
-
-                    localStorage.removeItem(
-                        ATTENDANCE_STORAGE_KEY
-                    );
-                }
-            }
-
-            return {
-                date: getTodayKey(),
-                status: "Not Started",
-                punchInTime: null,
-                punchOutTime: null,
-                totalSeconds: 0,
-            };
-        });
-
-    const [elapsedSeconds, setElapsedSeconds] =
-        useState(0);
-
-    const [loading, setLoading] =
-        useState(false);
-
-    const [errorMessage, setErrorMessage] =
-        useState("");
-
-    const [successMessage, setSuccessMessage] =
-        useState("");
+    const [elapsedSeconds, setElapsedSeconds] = useState(0);
+    const [loading, setLoading] = useState(false);
+    const [errorMessage, setErrorMessage] = useState("");
+    const [successMessage, setSuccessMessage] = useState("");
 
     const timerRef = useRef(null);
 
-    // --------------------------------------------------
-    // Save ACTIVE attendance
-    // --------------------------------------------------
-    useEffect(() => {
-        // Do not store completed attendance
-        // in the active attendance key.
-        if (
-            attendance.status ===
-            "Currently Working"
-        ) {
-            localStorage.setItem(
-                ATTENDANCE_STORAGE_KEY,
-                JSON.stringify(attendance)
-            );
-        }
-
-        // If state becomes Not Started,
-        // make sure stale active data is gone.
-        if (
-            attendance.status ===
-            "Not Started"
-        ) {
-            localStorage.removeItem(
-                ATTENDANCE_STORAGE_KEY
-            );
-        }
-    }, [attendance]);
-
-    // --------------------------------------------------
-    // Format seconds → HH:MM:SS
-    // --------------------------------------------------
     const formatDuration = (seconds) => {
-        const totalSeconds = Number(
-            seconds || 0
-        );
+        const totalSeconds = Number(seconds || 0);
 
-        const hrs = Math.floor(
-            totalSeconds / 3600
-        );
-
-        const mins = Math.floor(
-            (totalSeconds % 3600) / 60
-        );
-
-        const secs =
-            totalSeconds % 60;
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const remainingSeconds = totalSeconds % 60;
 
         return [
-            String(hrs).padStart(2, "0"),
-            String(mins).padStart(2, "0"),
-            String(secs).padStart(2, "0"),
+            String(hours).padStart(2, "0"),
+            String(minutes).padStart(2, "0"),
+            String(remainingSeconds).padStart(2, "0"),
         ].join(":");
     };
 
-    // --------------------------------------------------
-    // Format API timestamp → local time
-    // --------------------------------------------------
     const formatTime = (dateTime) => {
         if (!dateTime) {
             return "--:--";
         }
 
-        const date = new Date(
-            dateTime
-        );
+        const date = new Date(dateTime);
 
-        return date.toLocaleTimeString(
-            "en-IN",
-            {
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-                hour12: true,
-            }
-        );
+        return date.toLocaleTimeString("en-IN", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: true,
+        });
     };
 
-    // --------------------------------------------------
-    // Live Timer
-    // --------------------------------------------------
     useEffect(() => {
         if (
-            attendance.status ===
-            "Currently Working" &&
+            attendance.status === "Currently Working" &&
             attendance.punchInTime
         ) {
             const updateTimer = () => {
-                const punchIn =
-                    new Date(
-                        attendance.punchInTime
-                    ).getTime();
+                const punchInTime = new Date(
+                    attendance.punchInTime
+                ).getTime();
 
-                const now = Date.now();
+                const currentTime = Date.now();
 
-                const seconds =
-                    Math.max(
-                        0,
-                        Math.floor(
-                            (now - punchIn) /
-                            1000
-                        )
-                    );
-
-                setElapsedSeconds(
-                    seconds
+                const seconds = Math.max(
+                    0,
+                    Math.floor(
+                        (currentTime - punchInTime) / 1000
+                    )
                 );
+
+                setElapsedSeconds(seconds);
             };
 
             updateTimer();
 
-            timerRef.current =
-                setInterval(
-                    updateTimer,
-                    1000
-                );
+            timerRef.current = setInterval(
+                updateTimer,
+                1000
+            );
         } else {
             if (timerRef.current) {
-                clearInterval(
-                    timerRef.current
-                );
-
+                clearInterval(timerRef.current);
                 timerRef.current = null;
             }
 
-            if (
-                attendance.status ===
-                "Completed"
-            ) {
+            if (attendance.status === "Completed") {
                 setElapsedSeconds(
-                    Number(
-                        attendance.totalSeconds ||
-                        0
-                    )
+                    Number(attendance.totalSeconds || 0)
                 );
             } else {
                 setElapsedSeconds(0);
@@ -325,10 +90,7 @@ const Attendance = () => {
 
         return () => {
             if (timerRef.current) {
-                clearInterval(
-                    timerRef.current
-                );
-
+                clearInterval(timerRef.current);
                 timerRef.current = null;
             }
         };
@@ -338,17 +100,34 @@ const Attendance = () => {
         attendance.totalSeconds,
     ]);
 
-    // --------------------------------------------------
-    // Punch In / Punch Out
-    // --------------------------------------------------
+    const getErrorMessage = (error) => {
+        const backendError = error?.response?.data;
+
+        if (typeof backendError === "string") {
+            return backendError;
+        }
+
+        if (backendError?.detail) {
+            return Array.isArray(backendError.detail)
+                ? backendError.detail[0]
+                : backendError.detail;
+        }
+
+        if (backendError?.message) {
+            return Array.isArray(backendError.message)
+                ? backendError.message[0]
+                : backendError.message;
+        }
+
+        if (!error?.response) {
+            return "Unable to connect to the server. Please check your connection.";
+        }
+
+        return "Unable to process attendance. Please try again.";
+    };
+
     const handlePunch = async () => {
-        // ------------------------------------------
-        // Extra frontend protection
-        // ------------------------------------------
-        if (
-            attendance.status ===
-            "Completed"
-        ) {
+        if (attendance.status === "Completed") {
             setErrorMessage(
                 "Today's attendance has already been completed."
             );
@@ -358,326 +137,149 @@ const Attendance = () => {
 
         try {
             setLoading(true);
-
             setErrorMessage("");
             setSuccessMessage("");
 
-            const data =
-                await punchAttendance();
+            const data = await punchAttendance();
 
-            console.log(
-                "Attendance Response:",
-                data
-            );
+            console.log("Attendance response:", data);
 
-            // ==========================================
-            // PUNCH IN
-            // ==========================================
-            if (
-                data.status ===
-                "Currently Working"
-            ) {
-                const newAttendance = {
-                    date: getTodayKey(),
-
-                    status:
-                        "Currently Working",
-
-                    punchInTime:
-                        data.punch_in_time,
-
+            // Punch in response
+            if (data?.status === "Currently Working") {
+                setAttendance({
+                    status: "Currently Working",
+                    punchInTime: data.punch_in_time,
                     punchOutTime: null,
-
                     totalSeconds: 0,
-                };
-
-                setAttendance(
-                    newAttendance
-                );
-
-                localStorage.setItem(
-                    ATTENDANCE_STORAGE_KEY,
-                    JSON.stringify(
-                        newAttendance
-                    )
-                );
+                });
 
                 setElapsedSeconds(0);
 
                 setSuccessMessage(
                     data.message ||
-                    "Punched in successfully"
+                        "Punched in successfully."
                 );
 
                 return;
             }
 
-            // ==========================================
-            // PUNCH OUT
-            // ==========================================
+            // Punch out response
             if (
-                data.punch_out_time &&
-                data.total_seconds !==
-                undefined
+                data?.punch_out_time &&
+                data?.total_seconds !== undefined
             ) {
-                console.log(
-                    "Punched out successfully:",
-                    data
-                );
-
-                // Stop timer
-                if (
-                    timerRef.current
-                ) {
-                    clearInterval(
-                        timerRef.current
-                    );
-
-                    timerRef.current =
-                        null;
+                if (timerRef.current) {
+                    clearInterval(timerRef.current);
+                    timerRef.current = null;
                 }
 
-                // --------------------------------------
-                // Get employee ID BEFORE logout
-                // --------------------------------------
-                const employeeId =
-                    localStorage.getItem(
-                        "employee_id"
-                    );
-
-                // --------------------------------------
-                // SAVE COMPLETED ATTENDANCE
-                //
-                // This key MUST survive logout.
-                // --------------------------------------
-                const completedAttendance =
-                {
-                    employee_id:
-                        employeeId,
-
-                    date:
-                        getTodayKey(),
-
-                    completed: true,
+                const completedAttendance = {
+                    status: "Completed",
 
                     punchInTime:
                         data.punch_in_time ||
                         attendance.punchInTime,
 
-                    punchOutTime:
-                        data.punch_out_time,
+                    punchOutTime: data.punch_out_time,
 
-                    totalSeconds:
-                        Number(
-                            data.total_seconds
-                        ),
+                    totalSeconds: Number(
+                        data.total_seconds || 0
+                    ),
                 };
 
-                localStorage.setItem(
-                    ATTENDANCE_COMPLETED_KEY,
-                    JSON.stringify(
-                        completedAttendance
-                    )
+                setAttendance(completedAttendance);
+
+                setElapsedSeconds(
+                    completedAttendance.totalSeconds
                 );
 
-                // --------------------------------------
-                // Remove active punch-in state
-                // --------------------------------------
-                localStorage.removeItem(
-                    ATTENDANCE_STORAGE_KEY
+                setSuccessMessage(
+                    data.message ||
+                        "Punched out successfully."
                 );
-
-                // --------------------------------------
-                // CLEAR LOGIN / SESSION DATA
-                //
-                // Do NOT use:
-                // localStorage.clear()
-                //
-                // because it would also delete
-                // attendance_completed_today
-                // --------------------------------------
-                localStorage.removeItem(
-                    "access"
-                );
-
-                localStorage.removeItem(
-                    "refresh"
-                );
-
-                localStorage.removeItem(
-                    "access_token"
-                );
-
-                localStorage.removeItem(
-                    "refresh_token"
-                );
-
-                localStorage.removeItem(
-                    "role"
-                );
-
-                localStorage.removeItem(
-                    "employee_id"
-                );
-
-                localStorage.removeItem(
-                    "name"
-                );
-
-                localStorage.removeItem(
-                    "profile_picture"
-                );
-
-                localStorage.removeItem(
-                    "must_change_password"
-                );
-
-                // --------------------------------------
-                // LOGOUT
-                // --------------------------------------
-                window.location.href =
-                    "/login";
 
                 return;
             }
 
-            // ==========================================
-            // Unexpected API response
-            // ==========================================
             setErrorMessage(
-                "Unexpected response from attendance API."
+                data?.message ||
+                    "Unexpected response from attendance API."
             );
-
         } catch (error) {
             console.error(
-                "Attendance API Error:",
+                "Attendance API error:",
                 error
             );
 
-            const backendError =
-                error?.response?.data;
-
-            if (
-                typeof backendError ===
-                "string"
-            ) {
-                setErrorMessage(
-                    backendError
-                );
-            } else if (
-                backendError?.detail
-            ) {
-                setErrorMessage(
-                    backendError.detail
-                );
-            } else if (
-                backendError?.message
-            ) {
-                setErrorMessage(
-                    backendError.message
-                );
-            } else {
-                setErrorMessage(
-                    "Unable to process attendance. Please try again."
-                );
-            }
+            setErrorMessage(
+                getErrorMessage(error)
+            );
         } finally {
             setLoading(false);
         }
     };
 
-    // --------------------------------------------------
-    // Working Duration
-    // --------------------------------------------------
     const workingSeconds =
-        attendance.status ===
-            "Currently Working"
+        attendance.status === "Currently Working"
             ? elapsedSeconds
             : attendance.totalSeconds;
 
-    // --------------------------------------------------
-    // Status Styling
-    // --------------------------------------------------
     const getStatusStyle = () => {
-        if (
-            attendance.status ===
-            "Currently Working"
-        ) {
-            return "bg-green-50 text-green-700 border-green-200";
+        if (attendance.status === "Currently Working") {
+            return "border-green-200 bg-green-50 text-green-700";
         }
 
-        if (
-            attendance.status ===
-            "Completed"
-        ) {
-            return "bg-blue-50 text-blue-700 border-blue-200";
+        if (attendance.status === "Completed") {
+            return "border-blue-200 bg-blue-50 text-blue-700";
         }
 
-        return "bg-gray-50 text-gray-600 border-gray-200";
+        return "border-gray-200 bg-gray-50 text-gray-600";
     };
 
     return (
         <div className="min-h-full bg-gray-50 p-6">
-
-            {/* PAGE HEADER */}
             <div className="mb-6">
-
                 <h1 className="text-2xl font-semibold text-ettm-blue">
                     Attendance
                 </h1>
 
                 <p className="mt-1 text-sm text-gray-500">
-                    Manage your daily attendance
-                    and working hours.
+                    Manage your daily attendance and working hours.
                 </p>
-
             </div>
 
-            {/* SUCCESS MESSAGE */}
             {successMessage && (
                 <div className="mb-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
                     {successMessage}
                 </div>
             )}
 
-            {/* ERROR MESSAGE */}
             {errorMessage && (
                 <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
                     {errorMessage}
                 </div>
             )}
 
-            {/* ATTENDANCE CARD */}
             <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-
-                {/* HEADER */}
                 <div className="flex flex-col gap-4 border-b border-gray-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
-
                     <div>
-
                         <h2 className="text-lg font-semibold text-gray-800">
-                            Today's Attendance
+                            Today&apos;s Attendance
                         </h2>
 
                         <p className="mt-1 text-sm text-gray-500">
                             {new Date().toLocaleDateString(
                                 "en-IN",
                                 {
-                                    weekday:
-                                        "long",
-                                    day:
-                                        "2-digit",
-                                    month:
-                                        "long",
-                                    year:
-                                        "numeric",
+                                    weekday: "long",
+                                    day: "2-digit",
+                                    month: "long",
+                                    year: "numeric",
                                 }
                             )}
                         </p>
-
                     </div>
 
-                    {/* STATUS */}
                     <div
                         className={`inline-flex w-fit items-center rounded-full border px-4 py-2 text-sm font-medium ${getStatusStyle()}`}
                     >
@@ -685,95 +287,63 @@ const Attendance = () => {
 
                         {attendance.status}
                     </div>
-
                 </div>
 
-                {/* ======================================
-                    CURRENTLY WORKING
-                ====================================== */}
                 {attendance.status ===
                     "Currently Working" && (
+                    <div className="py-8 text-center">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                            Working Duration
+                        </p>
 
-                        <div className="py-8 text-center">
+                        <p className="mt-3 font-mono text-5xl font-semibold tracking-wider text-ettm-blue">
+                            {formatDuration(
+                                elapsedSeconds
+                            )}
+                        </p>
 
-                            <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-                                Working Duration
-                            </p>
+                        <p className="mt-3 text-sm text-green-600">
+                            You are currently working
+                        </p>
+                    </div>
+                )}
 
-                            <p className="mt-3 font-mono text-5xl font-semibold tracking-wider text-ettm-blue">
-                                {formatDuration(
-                                    elapsedSeconds
-                                )}
-                            </p>
+                {attendance.status === "Completed" && (
+                    <div className="py-8 text-center">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                            Total Working Time
+                        </p>
 
-                            <p className="mt-3 text-sm text-green-600">
-                                You are currently working
-                            </p>
+                        <p className="mt-3 font-mono text-5xl font-semibold tracking-wider text-ettm-blue">
+                            {formatDuration(
+                                attendance.totalSeconds
+                            )}
+                        </p>
 
-                        </div>
+                        <p className="mt-3 text-sm font-medium text-blue-600">
+                            Today&apos;s attendance is completed
+                        </p>
 
-                    )}
+                        <p className="mt-2 text-xs text-gray-400">
+                            You cannot punch in again today.
+                        </p>
+                    </div>
+                )}
 
-                {/* ======================================
-                    COMPLETED
-                ====================================== */}
-                {attendance.status ===
-                    "Completed" && (
+                {attendance.status === "Not Started" && (
+                    <div className="py-8 text-center">
+                        <p className="text-sm text-gray-500">
+                            You have not punched in today.
+                        </p>
 
-                        <div className="py-8 text-center">
+                        <p className="mt-2 text-xs text-gray-400">
+                            Click the button below to start your attendance.
+                        </p>
+                    </div>
+                )}
 
-                            <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-                                Total Working Time
-                            </p>
-
-                            <p className="mt-3 font-mono text-5xl font-semibold tracking-wider text-ettm-blue">
-                                {formatDuration(
-                                    attendance.totalSeconds
-                                )}
-                            </p>
-
-                            <p className="mt-3 text-sm font-medium text-blue-600">
-                                Today's attendance is completed
-                            </p>
-
-                            <p className="mt-2 text-xs text-gray-400">
-                                You cannot punch in again today.
-                            </p>
-
-                        </div>
-
-                    )}
-
-                {/* ======================================
-                    NOT STARTED
-                ====================================== */}
-                {attendance.status ===
-                    "Not Started" && (
-
-                        <div className="py-8 text-center">
-
-                            <p className="text-sm text-gray-500">
-                                You have not punched in
-                                today.
-                            </p>
-
-                            <p className="mt-2 text-xs text-gray-400">
-                                Click the button below
-                                to start your attendance.
-                            </p>
-
-                        </div>
-
-                    )}
-
-                {/* ======================================
-                    TIMES
-                ====================================== */}
                 <div className="grid grid-cols-1 gap-4 border-t border-gray-100 pt-5 sm:grid-cols-3">
-
-                    {/* PUNCH IN */}
                     <div className="rounded-lg bg-gray-50 p-4">
-
                         <p className="text-xs font-medium text-gray-400">
                             Punch In
                         </p>
@@ -783,12 +353,9 @@ const Attendance = () => {
                                 attendance.punchInTime
                             )}
                         </p>
-
                     </div>
 
-                    {/* PUNCH OUT */}
                     <div className="rounded-lg bg-gray-50 p-4">
-
                         <p className="text-xs font-medium text-gray-400">
                             Punch Out
                         </p>
@@ -798,12 +365,9 @@ const Attendance = () => {
                                 attendance.punchOutTime
                             )}
                         </p>
-
                     </div>
 
-                    {/* WORKING HOURS */}
                     <div className="rounded-lg bg-gray-50 p-4">
-
                         <p className="text-xs font-medium text-gray-400">
                             Working Hours
                         </p>
@@ -813,56 +377,38 @@ const Attendance = () => {
                                 workingSeconds
                             )}
                         </p>
-
                     </div>
-
                 </div>
 
-                {/* ======================================
-                    ACTION BUTTON
-                ====================================== */}
                 <div className="mt-6 flex justify-center">
-
-                    {attendance.status !==
-                        "Completed" && (
-
-                            <button
-                                type="button"
-                                onClick={
-                                    handlePunch
-                                }
-                                disabled={
-                                    loading
-                                }
-                                className={`rounded-lg px-10 py-3 text-sm font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${attendance.status ===
-                                    "Currently Working"
+                    {attendance.status !== "Completed" && (
+                        <button
+                            type="button"
+                            onClick={handlePunch}
+                            disabled={loading}
+                            className={`rounded-lg px-10 py-3 text-sm font-semibold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                                attendance.status ===
+                                "Currently Working"
                                     ? "bg-red-600 hover:bg-red-700"
                                     : "bg-ettm-blue hover:opacity-90"
-                                    }`}
-                            >
-                                {loading
-                                    ? "Processing..."
-                                    : attendance.status ===
-                                        "Currently Working"
-                                        ? "Punch Out"
-                                        : "Punch In"}
-                            </button>
+                            }`}
+                        >
+                            {loading
+                                ? "Processing..."
+                                : attendance.status ===
+                                    "Currently Working"
+                                  ? "Punch Out"
+                                  : "Punch In"}
+                        </button>
+                    )}
 
-                        )}
-
-                    {attendance.status ===
-                        "Completed" && (
-
-                            <div className="rounded-lg bg-blue-50 px-8 py-3 text-sm font-semibold text-blue-700">
-                                ✓ Attendance Completed
-                            </div>
-
-                        )}
-
+                    {attendance.status === "Completed" && (
+                        <div className="rounded-lg bg-blue-50 px-8 py-3 text-sm font-semibold text-blue-700">
+                            ✓ Attendance Completed
+                        </div>
+                    )}
                 </div>
-
             </div>
-
         </div>
     );
 };

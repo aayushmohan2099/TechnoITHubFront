@@ -57,6 +57,7 @@ const Attendance = () => {
   // Fetch Attendance
   // --------------------------------------------------
   const fetchAttendance = async (pageNumber = page, dateValue = filterDate) => {
+    if (!dateValue) return;
     try {
       setLoading(true);
       setError("");
@@ -65,8 +66,6 @@ const Attendance = () => {
         page: pageNumber,
         date: dateValue,
       });
-
-      console.log("Attendance API Response:", data);
 
       // ------------------------------------------
       // Paginated Response
@@ -133,17 +132,8 @@ const Attendance = () => {
   // Initial + Date Change
   // --------------------------------------------------
   useEffect(() => {
-    setPage(1);
-
-    fetchAttendance(1, filterDate);
-  }, [filterDate]);
-
-  // --------------------------------------------------
-  // Page Change
-  // --------------------------------------------------
-  useEffect(() => {
     fetchAttendance(page, filterDate);
-  }, [page]);
+  }, [page, filterDate]);
 
   // --------------------------------------------------
   // Format Duration

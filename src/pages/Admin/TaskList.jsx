@@ -46,32 +46,22 @@ const TaskList = () => {
 
             let allTasks = [];
             let currentPage = pageNumber;
-            let hasMore = true;
 
-            while (hasMore) {
-                const data = await getAllTasks({
-                    page: currentPage,
-                    search: searchValue.trim(),
-                    page_size: 100,
-                });
+            const data = await getAllTasks({
+                page: currentPage,
+                search: searchValue.trim(),
+                page_size: 100,
+            });
 
-                const pageResults = Array.isArray(data?.results)
-                    ? data.results
-                    : Array.isArray(data?.data)
-                        ? data.data
-                        : Array.isArray(data)
-                            ? data
-                            : [];
+            const pageResults = Array.isArray(data?.results)
+                ? data.results
+                : Array.isArray(data?.data)
+                    ? data.data
+                    : Array.isArray(data)
+                        ? data
+                        : []; 
 
-                allTasks = [...allTasks, ...pageResults];
-
-                const nextUrl = data?.next;
-                if (nextUrl) {
-                    currentPage += 1;
-                } else {
-                    hasMore = false;
-                }
-            }
+            allTasks = [...allTasks, ...pageResults];
 
             setTasks(allTasks);
             setNextPage(null);
@@ -101,15 +91,6 @@ const TaskList = () => {
     useEffect(() => {
         fetchTasks(1, "");
     }, []);
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setPage(1);
-            fetchTasks(1, search);
-        }, 300);
-
-        return () => clearTimeout(timer);
-    }, [search]);
 
     const normalizedTasks = useMemo(() => {
         return tasks.filter((task) => {
@@ -439,6 +420,24 @@ const TaskList = () => {
                     </div>
 
                 </div>
+
+<div>
+                    <button
+                    type="button"
+                    onClick={() =>
+                        fetchTasks(
+                            page,
+                            search
+                        )
+                    }
+                    disabled={loading}
+                    className="rounded-lg bg-ettm-blue px-5 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                    {loading
+                        ? "Fetching..."
+                        : "Fetch"}
+                </button>
+</div>
 
             </div>
 
