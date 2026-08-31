@@ -47,12 +47,13 @@ const saveUserForCurrentEmployee = (userData) => {
     localStorage.setItem("user_data", JSON.stringify(userData));
 };
 
+// 🛠️ Yahan port fix logic add kar di gayi hai
 const normalizeProfilePictureUrl = (value) => {
     if (!value || typeof value !== "string") {
         return "";
     }
 
-    const trimmedValue = value.trim();
+    let trimmedValue = value.trim();
     if (!trimmedValue || ["null", "undefined", ""].includes(trimmedValue.toLowerCase())) {
         return "";
     }
@@ -61,7 +62,8 @@ const normalizeProfilePictureUrl = (value) => {
         return trimmedValue;
     }
 
-     if (trimmedValue.includes("66.116.207.88") && !trimmedValue.includes("66.116.207.88:")) {
+    // Agar URL me IP hai par port number missing hai, toh automatic `:14250` jod do
+    if (trimmedValue.includes("66.116.207.88") && !trimmedValue.includes("66.116.207.88:")) {
         trimmedValue = trimmedValue.replace("66.116.207.88", "66.116.207.88:14250");
     }
  
@@ -229,7 +231,10 @@ const ProfileIcon = () => {
                             src={profilePicture}
                             alt={userName}
                             className="h-full w-full object-cover"
-                            onError={() => setImageFailed(true)}
+                            onError={(e) => {
+                                console.error("Image failed to load. URL was:", profilePicture);
+                                setImageFailed(true);
+                            }}
                         />
                     ) : (
                         <span className="text-sm font-semibold">
