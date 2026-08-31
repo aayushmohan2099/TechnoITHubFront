@@ -1,99 +1,117 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, {
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+} from "react";
+
 import {
-    getAllEmployees,
     createTask,
+    getAllEmployees,
 } from "../../api/employeeApi";
+
+const initialFormData = {
+    title: "",
+    description: "",
+    assigned_to: "",
+    start_date: "",
+    deadline: "",
+    priority: "",
+};
 
 const Tasks = () => {
     const [employees, setEmployees] = useState([]);
-    const [loadingEmployees, setLoadingEmployees] = useState(false);
+    const [loadingEmployees, setLoadingEmployees] =
+        useState(false);
     const [submitting, setSubmitting] = useState(false);
 
-    const [successMessage, setSuccessMessage] = useState("");
-    const [errorMessage, setErrorMessage] = useState("");
+    const [successMessage, setSuccessMessage] =
+        useState("");
+    const [errorMessage, setErrorMessage] =
+        useState("");
 
-    const [formData, setFormData] = useState({
-        title: "",
-        description: "",
-        assigned_to: "",
-        start_date: "",
-        deadline: "",
-        priority: "",
-    });
+    const [formData, setFormData] =
+        useState(initialFormData);
 
     const [errors, setErrors] = useState({});
 
-    // Backend employee search
     const [search, setSearch] = useState("");
 
-    // Selected employee object
-    const [selectedEmployee, setSelectedEmployee] = useState(null);
+    const [selectedEmployee, setSelectedEmployee] =
+        useState(null);
 
-    // Employee dropdown
-    const [showEmployeeResults, setShowEmployeeResults] =
-        useState(false);
+    const [
+        showEmployeeResults,
+        setShowEmployeeResults,
+    ] = useState(false);
 
     const employeeSearchRef = useRef(null);
 
-    // --------------------------------------------------
-    // FETCH EMPLOYEES
-    // --------------------------------------------------
-    const fetchEmployees = async (searchValue = "") => {
-        try {
-            setLoadingEmployees(true);
-            setErrorMessage("");
+    // This prevents createTask from running twice
+    const submittingRef = useRef(false);
 
-            const data = await getAllEmployees({
-                page: 1,
-                search: searchValue.trim(),
-            });
+    const fetchEmployees = useCallback(
+        async (searchValue = "") => {
+            try {
+                setLoadingEmployees(true);
+                setErrorMessage("");
 
-            console.log(
-                "Employees API Response:",
-                data
-            );
+                const data = await getAllEmployees({
+                    page: 1,
+                    search: searchValue.trim(),
+                });
 
-            if (Array.isArray(data)) {
-                setEmployees(data);
-            } else if (
-                Array.isArray(data?.results)
-            ) {
-                setEmployees(data.results);
-            } else if (
-                Array.isArray(data?.data)
-            ) {
-                setEmployees(data.data);
-            } else {
+                console.log(
+                    "Employees API response:",
+                    data
+                );
+
+                if (Array.isArray(data)) {
+                    setEmployees(data);
+                } else if (
+                    Array.isArray(data?.results)
+                ) {
+                    setEmployees(data.results);
+                } else if (
+                    Array.isArray(data?.data)
+                ) {
+                    setEmployees(data.data);
+                } else {
+                    setEmployees([]);
+                }
+            } catch (error) {
+                console.error(
+                    "Error fetching employees:",
+                    error
+                );
+
                 setEmployees([]);
+
+                setErrorMessage(
+                    error?.response?.data?.detail ||
+                        "Failed to load employees."
+                );
+            } finally {
+                setLoadingEmployees(false);
             }
-        } catch (error) {
-            console.error(
-                "Error fetching employees:",
-                error
-            );
+        },
+        []
+    );
 
-            setEmployees([]);
-
-            setErrorMessage(
-                error?.response?.data?.detail ||
-                "Failed to load employees."
-            );
-        } finally {
-            setLoadingEmployees(false);
+    /*
+     * This single effect handles both:
+     * 1. Initial employee loading
+     * 2. Employee searching
+     *
+     * Do not add another initial fetch effect.
+     */
+    useEffect(() => {
+        // Selecting an employee changes the search input.
+        // Prevent an unnecessary API call after selection.
+        if (selectedEmployee) {
+            return;
         }
-    };
 
-    // --------------------------------------------------
-    // INITIAL EMPLOYEE LOAD
-    // --------------------------------------------------
-    useEffect(() => {
-        fetchEmployees("");
-    }, []);
-
-    // --------------------------------------------------
-    // SMOOTH BACKEND SEARCH - 300ms DEBOUNCE
-    // --------------------------------------------------
-    useEffect(() => {
         const timer = setTimeout(() => {
             fetchEmployees(search);
         }, 300);
@@ -101,11 +119,13 @@ const Tasks = () => {
         return () => {
             clearTimeout(timer);
         };
-    }, [search]);
+    }, [
+        search,
+        selectedEmployee,
+        fetchEmployees,
+    ]);
 
-    // --------------------------------------------------
-    // CLOSE DROPDOWN WHEN CLICKING OUTSIDE
-    // --------------------------------------------------
+    // Close employee dropdown when clicking outside
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (
@@ -131,19 +151,16 @@ const Tasks = () => {
         };
     }, []);
 
-    // --------------------------------------------------
-    // NORMAL FORM INPUT
-    // --------------------------------------------------
-    const handleChange = (e) => {
-        const { name, value } = e.target;
+    const handleChange = (event) => {
+        const { name, value } = event.target;
 
-        setFormData((prev) => ({
-            ...prev,
+        setFormData((previous) => ({
+            ...previous,
             [name]: value,
         }));
 
-        setErrors((prev) => ({
-            ...prev,
+        setErrors((previous) => ({
+            ...previous,
             [name]: "",
         }));
 
@@ -151,95 +168,80 @@ const Tasks = () => {
         setErrorMessage("");
     };
 
-    // --------------------------------------------------
-    // EMPLOYEE SEARCH
-    // --------------------------------------------------
     const handleEmployeeSearch = (value) => {
         setSearch(value);
 
-        // Remove previous selection when typing again
+        // Remove the previously selected employee
         if (formData.assigned_to) {
-            setFormData((prev) => ({
-                ...prev,
+            setFormData((previous) => ({
+                ...previous,
                 assigned_to: "",
             }));
 
             setSelectedEmployee(null);
         }
 
-        setErrors((prev) => ({
-            ...prev,
+        setErrors((previous) => ({
+            ...previous,
             assigned_to: "",
         }));
 
         setSuccessMessage("");
         setErrorMessage("");
-
         setShowEmployeeResults(true);
     };
 
-    // --------------------------------------------------
-    // SELECT EMPLOYEE
-    // assigned_to = user_id
-    // --------------------------------------------------
     const handleEmployeeSelect = (employee) => {
         console.log(
-            "Selected Employee:",
+            "Selected employee:",
             employee
         );
 
         console.log(
-            "Passing user_id in assigned_to:",
+            "Passing user_id as assigned_to:",
             employee.user_id
         );
 
-        setFormData((prev) => ({
-            ...prev,
+        setFormData((previous) => ({
+            ...previous,
             assigned_to: employee.user_id,
         }));
 
         setSelectedEmployee(employee);
 
         setSearch(
-            `${employee.name || ""} - ${employee.employee_id || ""
+            `${employee.name || ""} - ${
+                employee.employee_id || ""
             }`
         );
 
-        setErrors((prev) => ({
-            ...prev,
+        setErrors((previous) => ({
+            ...previous,
             assigned_to: "",
         }));
 
         setShowEmployeeResults(false);
-
         setSuccessMessage("");
         setErrorMessage("");
     };
 
-    // --------------------------------------------------
-    // CLEAR EMPLOYEE
-    // --------------------------------------------------
     const clearEmployeeSelection = () => {
-        setFormData((prev) => ({
-            ...prev,
+        setFormData((previous) => ({
+            ...previous,
             assigned_to: "",
         }));
 
         setSelectedEmployee(null);
-
         setSearch("");
 
-        setErrors((prev) => ({
-            ...prev,
+        setErrors((previous) => ({
+            ...previous,
             assigned_to: "",
         }));
 
         setShowEmployeeResults(false);
     };
 
-    // --------------------------------------------------
-    // VALIDATION
-    // --------------------------------------------------
     const validateForm = () => {
         const newErrors = {};
 
@@ -271,8 +273,7 @@ const Tasks = () => {
         if (
             formData.start_date &&
             formData.deadline &&
-            formData.deadline <
-            formData.start_date
+            formData.deadline < formData.start_date
         ) {
             newErrors.deadline =
                 "Deadline cannot be before the start date.";
@@ -288,11 +289,16 @@ const Tasks = () => {
         return Object.keys(newErrors).length === 0;
     };
 
-    // --------------------------------------------------
-    // SUBMIT TASK
-    // --------------------------------------------------
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const handleSubmit = async (event) => {
+        event.preventDefault();
+
+        /*
+         * State updates are asynchronous, so use a ref
+         * to immediately block a second API call.
+         */
+        if (submittingRef.current) {
+            return;
+        }
 
         setSuccessMessage("");
         setErrorMessage("");
@@ -302,12 +308,11 @@ const Tasks = () => {
         }
 
         try {
+            submittingRef.current = true;
             setSubmitting(true);
 
             const payload = {
-                title:
-                    formData.title.trim(),
-
+                title: formData.title.trim(),
                 description:
                     formData.description.trim(),
 
@@ -315,31 +320,21 @@ const Tasks = () => {
                     formData.assigned_to
                 ),
 
-                start_date:
-                    formData.start_date,
-
-                deadline:
-                    formData.deadline,
-
-                priority:
-                    formData.priority,
+                start_date: formData.start_date,
+                deadline: formData.deadline,
+                priority: formData.priority,
             };
 
             console.log(
-                "Task Payload:",
+                "Task request payload:",
                 payload
-            );
-
-            console.log(
-                "assigned_to user_id:",
-                formData.assigned_to
             );
 
             const response =
                 await createTask(payload);
 
             console.log(
-                "Task Created:",
+                "Task created:",
                 response
             );
 
@@ -347,25 +342,11 @@ const Tasks = () => {
                 "Task assigned successfully!"
             );
 
-            setFormData({
-                title: "",
-                description: "",
-                assigned_to: "",
-                start_date: "",
-                deadline: "",
-                priority: "",
-            });
-
+            setFormData(initialFormData);
             setSearch("");
-
             setSelectedEmployee(null);
-
-            setEmployees([]);
-
             setErrors({});
-
             setShowEmployeeResults(false);
-
         } catch (error) {
             console.error(
                 "Error creating task:",
@@ -376,23 +357,20 @@ const Tasks = () => {
                 error?.response?.data;
 
             if (
-                typeof backendError ===
-                "string"
+                typeof backendError === "string"
             ) {
-                setErrorMessage(
-                    backendError
-                );
+                setErrorMessage(backendError);
             } else if (
                 backendError?.detail
             ) {
                 setErrorMessage(
-                    backendError.detail
+                    Array.isArray(backendError.detail)
+                        ? backendError.detail[0]
+                        : backendError.detail
                 );
             } else if (backendError) {
                 setErrorMessage(
-                    Object.values(
-                        backendError
-                    )
+                    Object.values(backendError)
                         .flat()
                         .join(" ")
                 );
@@ -402,61 +380,43 @@ const Tasks = () => {
                 );
             }
         } finally {
+            submittingRef.current = false;
             setSubmitting(false);
         }
     };
 
-    // --------------------------------------------------
-    // CLEAR FORM
-    // --------------------------------------------------
     const handleClear = () => {
-        setFormData({
-            title: "",
-            description: "",
-            assigned_to: "",
-            start_date: "",
-            deadline: "",
-            priority: "",
-        });
-
+        setFormData(initialFormData);
         setSearch("");
-
         setSelectedEmployee(null);
-
         setErrors({});
-
         setSuccessMessage("");
-
         setErrorMessage("");
-
         setShowEmployeeResults(false);
     };
 
     return (
         <div className="min-h-full bg-gray-50 p-6">
-
-            {/* PAGE HEADER */}
+            {/* Page heading */}
             <div className="mb-6">
-
                 <h1 className="text-2xl font-semibold text-ettm-blue">
                     Assign Task
                 </h1>
 
                 <p className="mt-1 text-sm text-gray-500">
-                    Create a task and assign it
-                    to an employee.
+                    Create a task and assign it to an
+                    employee.
                 </p>
-
             </div>
 
-            {/* SUCCESS */}
+            {/* Success message */}
             {successMessage && (
                 <div className="mb-5 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
                     {successMessage}
                 </div>
             )}
 
-            {/* ERROR */}
+            {/* Error message */}
             {errorMessage && (
                 <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
                     {errorMessage}
@@ -464,33 +424,28 @@ const Tasks = () => {
             )}
 
             <form onSubmit={handleSubmit}>
-
-                {/* TASK DETAILS */}
+                {/* Task details */}
                 <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-
                     <div className="mb-5">
-
                         <h2 className="text-lg font-semibold text-gray-800">
                             Task Details
                         </h2>
 
                         <p className="mt-1 text-sm text-gray-500">
-                            Enter the basic information
-                            for the task.
+                            Enter the basic information for
+                            the task.
                         </p>
-
                     </div>
 
-                    {/* TITLE */}
+                    {/* Task title */}
                     <div className="mb-5">
-
                         <label
                             htmlFor="title"
                             className="mb-2 block text-sm font-medium text-gray-700"
                         >
-                            Task Title
+                            Task Title{" "}
                             <span className="text-red-500">
-                                {" "}*
+                                *
                             </span>
                         </label>
 
@@ -501,10 +456,11 @@ const Tasks = () => {
                             value={formData.title}
                             onChange={handleChange}
                             placeholder="Enter task title"
-                            className={`w-full rounded-lg border px-4 py-3 text-sm outline-none ${errors.title
-                                ? "border-red-400"
-                                : "border-gray-300"
-                                }`}
+                            className={`w-full rounded-lg border px-4 py-3 text-sm outline-none ${
+                                errors.title
+                                    ? "border-red-400"
+                                    : "border-gray-300"
+                            }`}
                         />
 
                         {errors.title && (
@@ -512,19 +468,17 @@ const Tasks = () => {
                                 {errors.title}
                             </p>
                         )}
-
                     </div>
 
-                    {/* DESCRIPTION */}
+                    {/* Description */}
                     <div>
-
                         <label
                             htmlFor="description"
                             className="mb-2 block text-sm font-medium text-gray-700"
                         >
-                            Description
+                            Description{" "}
                             <span className="text-red-500">
-                                {" "}*
+                                *
                             </span>
                         </label>
 
@@ -532,50 +486,41 @@ const Tasks = () => {
                             id="description"
                             name="description"
                             rows={5}
-                            value={
-                                formData.description
-                            }
+                            value={formData.description}
                             onChange={handleChange}
                             placeholder="Describe the task..."
-                            className={`w-full resize-none rounded-lg border px-4 py-3 text-sm outline-none ${errors.description
-                                ? "border-red-400"
-                                : "border-gray-300"
-                                }`}
+                            className={`w-full resize-none rounded-lg border px-4 py-3 text-sm outline-none ${
+                                errors.description
+                                    ? "border-red-400"
+                                    : "border-gray-300"
+                            }`}
                         />
 
                         {errors.description && (
                             <p className="mt-1 text-xs text-red-500">
-                                {
-                                    errors.description
-                                }
+                                {errors.description}
                             </p>
                         )}
-
                     </div>
-
                 </div>
 
-                {/* ASSIGNMENT */}
+                {/* Employee assignment */}
                 <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-
                     <div className="mb-5">
-
                         <h2 className="text-lg font-semibold text-gray-800">
                             Assignment
                         </h2>
 
                         <p className="mt-1 text-sm text-gray-500">
-                            Search by employee name,
-                            employee ID, or designation.
+                            Search by employee name, employee
+                            ID, or designation.
                         </p>
-
                     </div>
 
                     <div
                         ref={employeeSearchRef}
                         className="relative"
                     >
-
                         <label className="mb-2 block text-sm font-medium text-gray-700">
                             Search Employee
                         </label>
@@ -585,55 +530,43 @@ const Tasks = () => {
                             value={search}
                             placeholder="Search name, Employee ID or designation..."
                             onFocus={() =>
-                                setShowEmployeeResults(
-                                    true
-                                )
+                                setShowEmployeeResults(true)
                             }
-                            onChange={(e) =>
+                            onChange={(event) =>
                                 handleEmployeeSearch(
-                                    e.target.value
+                                    event.target.value
                                 )
                             }
                             className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
                         />
 
-                        {/* SEARCH DROPDOWN */}
                         {showEmployeeResults && (
-
                             <div className="absolute left-0 right-0 z-30 mt-2 max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl">
-
                                 {loadingEmployees ? (
-
                                     <div className="px-4 py-6 text-center">
-
                                         <p className="text-sm text-gray-500">
-                                            Searching employees...
+                                            Searching
+                                            employees...
                                         </p>
-
                                     </div>
-
                                 ) : employees.length > 0 ? (
-
                                     <>
                                         <div className="border-b border-gray-100 bg-gray-50 px-4 py-2">
-
                                             <p className="text-xs font-medium text-gray-500">
                                                 {
                                                     employees.length
                                                 }{" "}
                                                 employee
                                                 {employees.length !==
-                                                    1
+                                                1
                                                     ? "s"
                                                     : ""}{" "}
                                                 found
                                             </p>
-
                                         </div>
 
                                         {employees.map(
                                             (employee) => (
-
                                                 <button
                                                     key={
                                                         employee.user_id ||
@@ -647,9 +580,7 @@ const Tasks = () => {
                                                     }
                                                     className="flex w-full items-center justify-between border-b border-gray-100 px-4 py-3 text-left transition last:border-b-0 hover:bg-gray-50"
                                                 >
-
                                                     <div>
-
                                                         <p className="text-sm font-semibold text-gray-800">
                                                             {
                                                                 employee.name
@@ -661,53 +592,38 @@ const Tasks = () => {
                                                                 employee.employee_id
                                                             }{" "}
                                                             •{" "}
-                                                            {
-                                                                employee.designation ||
-                                                                "-"
-                                                            }
+                                                            {employee.designation ||
+                                                                "-"}
                                                         </p>
-
                                                     </div>
 
                                                     <span className="text-xs font-medium text-ettm-blue">
                                                         Select
                                                     </span>
-
                                                 </button>
-
                                             )
                                         )}
-
                                     </>
-
                                 ) : (
-
                                     <div className="px-4 py-6 text-center">
-
                                         <p className="text-sm font-medium text-gray-500">
                                             No employees found
                                         </p>
 
                                         {search && (
                                             <p className="mt-1 text-xs text-gray-400">
-                                                No employee matched
-                                                "{search}".
+                                                No employee
+                                                matched "
+                                                {search}".
                                             </p>
                                         )}
-
                                     </div>
-
                                 )}
-
                             </div>
-
                         )}
-
                     </div>
 
-                    {/* SEARCH INFO */}
                     <div className="mt-3 flex items-center justify-between">
-
                         <p className="text-xs text-gray-400">
                             Search runs across all employees.
                         </p>
@@ -723,7 +639,6 @@ const Tasks = () => {
                                 Clear Search
                             </button>
                         )}
-
                     </div>
 
                     {errors.assigned_to && (
@@ -732,24 +647,18 @@ const Tasks = () => {
                         </p>
                     )}
 
-                    {/* SELECTED EMPLOYEE */}
                     {selectedEmployee && (
-
                         <div className="mt-5 rounded-xl border border-ettm-blue/20 bg-blue-50/50 p-5">
-
                             <div className="flex items-center justify-between">
-
                                 <div>
-
                                     <p className="text-xs font-semibold uppercase tracking-wide text-ettm-blue">
                                         Selected Employee
                                     </p>
 
                                     <p className="mt-1 text-sm text-gray-500">
-                                        This employee will receive
-                                        the task.
+                                        This employee will
+                                        receive the task.
                                     </p>
-
                                 </div>
 
                                 <button
@@ -761,11 +670,9 @@ const Tasks = () => {
                                 >
                                     Change
                                 </button>
-
                             </div>
 
                             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-4">
-
                                 <div>
                                     <p className="text-xs text-gray-400">
                                         Name
@@ -808,37 +715,26 @@ const Tasks = () => {
                                     </p>
 
                                     <p className="mt-1 text-sm font-semibold text-gray-800">
-                                        {
-                                            selectedEmployee.designation ||
-                                            "-"
-                                        }
+                                        {selectedEmployee.designation ||
+                                            "-"}
                                     </p>
                                 </div>
-
                             </div>
-
                         </div>
-
                     )}
-
                 </div>
 
-                {/* SCHEDULE */}
+                {/* Schedule */}
                 <div className="mb-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-
                     <div className="mb-5">
-
                         <h2 className="text-lg font-semibold text-gray-800">
                             Schedule & Priority
                         </h2>
-
                     </div>
 
                     <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-
-                        {/* START */}
+                        {/* Start date */}
                         <div>
-
                             <label className="mb-2 block text-sm font-medium text-gray-700">
                                 Start Date *
                             </label>
@@ -846,28 +742,24 @@ const Tasks = () => {
                             <input
                                 type="date"
                                 name="start_date"
-                                value={
-                                    formData.start_date
-                                }
-                                onChange={
-                                    handleChange
-                                }
-                                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm"
+                                value={formData.start_date}
+                                onChange={handleChange}
+                                className={`w-full rounded-lg border px-4 py-3 text-sm ${
+                                    errors.start_date
+                                        ? "border-red-400"
+                                        : "border-gray-300"
+                                }`}
                             />
 
                             {errors.start_date && (
                                 <p className="mt-1 text-xs text-red-500">
-                                    {
-                                        errors.start_date
-                                    }
+                                    {errors.start_date}
                                 </p>
                             )}
-
                         </div>
 
-                        {/* DEADLINE */}
+                        {/* Deadline */}
                         <div>
-
                             <label className="mb-2 block text-sm font-medium text-gray-700">
                                 Deadline *
                             </label>
@@ -879,43 +771,38 @@ const Tasks = () => {
                                     formData.start_date ||
                                     undefined
                                 }
-                                value={
-                                    formData.deadline
-                                }
-                                onChange={
-                                    handleChange
-                                }
-                                className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm"
+                                value={formData.deadline}
+                                onChange={handleChange}
+                                className={`w-full rounded-lg border px-4 py-3 text-sm ${
+                                    errors.deadline
+                                        ? "border-red-400"
+                                        : "border-gray-300"
+                                }`}
                             />
 
                             {errors.deadline && (
                                 <p className="mt-1 text-xs text-red-500">
-                                    {
-                                        errors.deadline
-                                    }
+                                    {errors.deadline}
                                 </p>
                             )}
-
                         </div>
 
-                        {/* PRIORITY */}
+                        {/* Priority */}
                         <div>
-
                             <label className="mb-2 block text-sm font-medium text-gray-700">
                                 Priority *
                             </label>
 
                             <select
                                 name="priority"
-                                value={
-                                    formData.priority
-                                }
-                                onChange={
-                                    handleChange
-                                }
-                                className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm"
+                                value={formData.priority}
+                                onChange={handleChange}
+                                className={`w-full rounded-lg border bg-white px-4 py-3 text-sm ${
+                                    errors.priority
+                                        ? "border-red-400"
+                                        : "border-gray-300"
+                                }`}
                             >
-
                                 <option value="">
                                     Select Priority
                                 </option>
@@ -931,31 +818,24 @@ const Tasks = () => {
                                 <option value="High">
                                     High
                                 </option>
-
                             </select>
 
                             {errors.priority && (
                                 <p className="mt-1 text-xs text-red-500">
-                                    {
-                                        errors.priority
-                                    }
+                                    {errors.priority}
                                 </p>
                             )}
-
                         </div>
-
                     </div>
-
                 </div>
 
-                {/* ACTIONS */}
+                {/* Buttons */}
                 <div className="flex justify-end gap-3">
-
                     <button
                         type="button"
                         onClick={handleClear}
                         disabled={submitting}
-                        className="rounded-lg border border-gray-300 bg-white px-6 py-3 text-sm font-medium text-gray-700"
+                        className="rounded-lg border border-gray-300 bg-white px-6 py-3 text-sm font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         Clear
                     </button>
@@ -963,17 +843,14 @@ const Tasks = () => {
                     <button
                         type="submit"
                         disabled={submitting}
-                        className="rounded-lg bg-ettm-blue px-6 py-3 text-sm font-medium text-white disabled:opacity-50"
+                        className="rounded-lg bg-ettm-blue px-6 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {submitting
                             ? "Assigning..."
                             : "Assign Task"}
                     </button>
-
                 </div>
-
             </form>
-
         </div>
     );
 };

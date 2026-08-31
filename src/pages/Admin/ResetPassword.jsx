@@ -70,9 +70,9 @@ const ResetPassword = () => {
     // --------------------------------------------------
     // Initial Load
     // --------------------------------------------------
-    useEffect(() => {
-        fetchEmployees();
-    }, []);
+    // useEffect(() => {
+    //     fetchEmployees();
+    // }, []);
 
     // --------------------------------------------------
     // Search Employees from Backend
