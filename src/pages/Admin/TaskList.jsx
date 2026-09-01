@@ -1,7 +1,6 @@
 import React, {
     useCallback,
     useEffect,
-    useMemo,
     useRef,
     useState,
 } from "react";
@@ -11,6 +10,12 @@ import Table from "../../components/common/Table";
 import Modal from "../../components/common/Modal";
 
 const PAGE_SIZE = 10;
+
+const EMPTY_FILTERS = {
+    search: "",
+    status: "",
+    priority: "",
+};
 
 const extractTasks = (response) => {
     if (Array.isArray(response)) {
@@ -32,108 +37,136 @@ const extractTasks = (response) => {
     return [];
 };
 
-// Makes "In Progress", "In-Progress" and "In_Progress" equal
-const normalizeFilterValue = (value) => {
-    return String(value || "")
-        .trim()
-        .toLowerCase()
-        .replace(/[\s_-]+/g, "");
+const getErrorMessage = (error) => {
+    const backendError = error?.response?.data;
+
+    if (typeof backendError === "string") {
+        return backendError;
+    }
+
+    if (backendError?.detail) {
+        return Array.isArray(backendError.detail)
+            ? backendError.detail[0]
+            : backendError.detail;
+    }
+
+    if (backendError?.message) {
+        return Array.isArray(backendError.message)
+            ? backendError.message[0]
+            : backendError.message;
+    }
+
+    if (!error?.response) {
+        return "Unable to connect to the server.";
+    }
+
+    return "Failed to load tasks.";
 };
 
 const TaskList = () => {
     const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [errorMessage, setErrorMessage] = useState("");
+    const [errorMessage, setErrorMessage] =
+        useState("");
 
+    // Form filter values
     const [search, setSearch] = useState("");
     const [status, setStatus] = useState("");
-    const [priority, setPriority] = useState("");
+    const [priority, setPriority] =
+        useState("");
 
+    // Filters that were applied after clicking Search
+    const [appliedFilters, setAppliedFilters] =
+        useState(EMPTY_FILTERS);
+
+    // Backend pagination
     const [page, setPage] = useState(1);
-    const [totalCount, setTotalCount] = useState(0);
-    const [nextPage, setNextPage] = useState(null);
-    const [previousPage, setPreviousPage] = useState(null);
+    const [totalCount, setTotalCount] =
+        useState(0);
+    const [nextPage, setNextPage] =
+        useState(null);
+    const [previousPage, setPreviousPage] =
+        useState(null);
 
-    const [selectedTask, setSelectedTask] = useState(null);
+    const [selectedTask, setSelectedTask] =
+        useState(null);
 
     // Prevent duplicate initial API call in development
     const initialFetchRef = useRef(false);
 
-    const getErrorMessage = (error) => {
-        const backendError = error?.response?.data;
-
-        if (typeof backendError === "string") {
-            return backendError;
-        }
-
-        if (backendError?.detail) {
-            return Array.isArray(backendError.detail)
-                ? backendError.detail[0]
-                : backendError.detail;
-        }
-
-        if (backendError?.message) {
-            return Array.isArray(backendError.message)
-                ? backendError.message[0]
-                : backendError.message;
-        }
-
-        if (!error?.response) {
-            return "Unable to connect to the server.";
-        }
-
-        return "Failed to load tasks.";
-    };
-
     const fetchTasks = useCallback(
-        async (pageNumber = 1, searchValue = "") => {
+        async (
+            pageNumber = 1,
+            filters = EMPTY_FILTERS
+        ) => {
             try {
                 setLoading(true);
                 setErrorMessage("");
 
-                const response = await getAllTasks({
-                    page: pageNumber,
-                    search: searchValue.trim(),
-                });
+                const response =
+                    await getAllTasks({
+                        page: pageNumber,
+                        search:
+                            filters.search || "",
+                        status:
+                            filters.status || "",
+                        priority:
+                            filters.priority || "",
+                    });
 
-                console.log("Get All Tasks Response:", response);
+                console.log(
+                    "Get All Tasks Response:",
+                    response
+                );
 
-                const taskResults = extractTasks(response);
+                const taskResults =
+                    extractTasks(response);
 
                 setTasks(taskResults);
                 setPage(pageNumber);
 
                 if (Array.isArray(response)) {
-                    setTotalCount(response.length);
+                    setTotalCount(
+                        response.length
+                    );
                     setNextPage(null);
                     setPreviousPage(null);
                 } else {
                     setTotalCount(
                         response?.count ??
-                            response?.data?.count ??
+                            response?.data
+                                ?.count ??
                             taskResults.length
                     );
 
                     setNextPage(
                         response?.next ??
-                            response?.data?.next ??
+                            response?.data
+                                ?.next ??
                             null
                     );
 
                     setPreviousPage(
                         response?.previous ??
-                            response?.data?.previous ??
+                            response?.data
+                                ?.previous ??
                             null
                     );
                 }
             } catch (error) {
-                console.error("Get All Tasks Error:", error);
+                console.error(
+                    "Get All Tasks Error:",
+                    error
+                );
 
                 setTasks([]);
                 setTotalCount(0);
                 setNextPage(null);
                 setPreviousPage(null);
-                setErrorMessage(getErrorMessage(error));
+
+                setErrorMessage(
+                    getErrorMessage(error)
+                );
             } finally {
                 setLoading(false);
             }
@@ -141,31 +174,16 @@ const TaskList = () => {
         []
     );
 
+    // Initial API call
     useEffect(() => {
         if (initialFetchRef.current) {
             return;
         }
 
         initialFetchRef.current = true;
-        fetchTasks(1, "");
+
+        fetchTasks(1, EMPTY_FILTERS);
     }, [fetchTasks]);
-
-    // Status and priority are filtered on the frontend
-    const filteredTasks = useMemo(() => {
-        return tasks.filter((task) => {
-            const matchesStatus =
-                !status ||
-                normalizeFilterValue(task.status) ===
-                    normalizeFilterValue(status);
-
-            const matchesPriority =
-                !priority ||
-                normalizeFilterValue(task.priority) ===
-                    normalizeFilterValue(priority);
-
-            return matchesStatus && matchesPriority;
-        });
-    }, [tasks, status, priority]);
 
     const totalPages = Math.max(
         1,
@@ -173,25 +191,40 @@ const TaskList = () => {
     );
 
     const startItem =
-        filteredTasks.length === 0
+        tasks.length === 0
             ? 0
             : (page - 1) * PAGE_SIZE + 1;
 
     const endItem =
-        filteredTasks.length === 0
+        tasks.length === 0
             ? 0
-            : startItem + filteredTasks.length - 1;
+            : startItem + tasks.length - 1;
 
+    // API is called when Search is clicked
     const handleSearchSubmit = (event) => {
         event.preventDefault();
-        fetchTasks(1, search);
+
+        const filters = {
+            search: search.trim(),
+            status,
+            priority,
+        };
+
+        setAppliedFilters(filters);
+        fetchTasks(1, filters);
     };
 
     const handleClearFilters = () => {
+        const emptyFilters = {
+            ...EMPTY_FILTERS,
+        };
+
         setSearch("");
         setStatus("");
         setPriority("");
-        fetchTasks(1, "");
+        setAppliedFilters(emptyFilters);
+
+        fetchTasks(1, emptyFilters);
     };
 
     const formatDate = (dateValue) => {
@@ -205,11 +238,14 @@ const TaskList = () => {
             return dateValue;
         }
 
-        return date.toLocaleDateString("en-IN", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-        });
+        return date.toLocaleDateString(
+            "en-IN",
+            {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+            }
+        );
     };
 
     const formatDateTime = (dateValue) => {
@@ -223,18 +259,25 @@ const TaskList = () => {
             return dateValue;
         }
 
-        return date.toLocaleString("en-IN", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-            hour12: true,
-        });
+        return date.toLocaleString(
+            "en-IN",
+            {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+            }
+        );
     };
 
     const getPriorityClass = (value) => {
-        switch (normalizeFilterValue(value)) {
+        switch (
+            String(value || "")
+                .trim()
+                .toLowerCase()
+        ) {
             case "high":
                 return "bg-red-100 text-red-700";
 
@@ -250,11 +293,17 @@ const TaskList = () => {
     };
 
     const getStatusClass = (value) => {
-        switch (normalizeFilterValue(value)) {
+        switch (
+            String(value || "")
+                .trim()
+                .toLowerCase()
+        ) {
             case "pending":
                 return "bg-yellow-100 text-yellow-700";
 
-            case "inprogress":
+            case "in progress":
+            case "in-progress":
+            case "in_progress":
                 return "bg-blue-100 text-blue-700";
 
             case "completed":
@@ -274,7 +323,9 @@ const TaskList = () => {
             key: "serial_number",
             label: "Sr. No.",
             render: (_task, rowIndex) =>
-                (page - 1) * PAGE_SIZE + rowIndex + 1,
+                (page - 1) * PAGE_SIZE +
+                rowIndex +
+                1,
         },
         {
             key: "title",
@@ -282,11 +333,13 @@ const TaskList = () => {
             render: (task) => (
                 <div>
                     <p className="font-semibold text-gray-800">
-                        {task.title || "Untitled Task"}
+                        {task.title ||
+                            "Untitled Task"}
                     </p>
 
                     <p className="mt-1 text-xs text-gray-500">
-                        Task ID: {task.id ?? "-"}
+                        Task ID:{" "}
+                        {task.id ?? "-"}
                     </p>
                 </div>
             ),
@@ -302,7 +355,8 @@ const TaskList = () => {
                     </p>
 
                     <p className="mt-1 text-xs text-gray-500">
-                        {task.assigned_to_emp_id || "-"}
+                        {task.assigned_to_emp_id ||
+                            "-"}
                     </p>
                 </div>
             ),
@@ -382,13 +436,19 @@ const TaskList = () => {
                     </h1>
 
                     <p className="mt-1 text-sm text-gray-500">
-                        View all tasks assigned to employees.
+                        View all tasks assigned
+                        to employees.
                     </p>
                 </div>
 
                 <button
                     type="button"
-                    onClick={() => fetchTasks(page, search)}
+                    onClick={() =>
+                        fetchTasks(
+                            page,
+                            appliedFilters
+                        )
+                    }
                     disabled={loading}
                     className="rounded-lg bg-ettm-blue px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
@@ -417,15 +477,20 @@ const TaskList = () => {
                         </h2>
 
                         <p className="mt-1 text-xs text-gray-500">
-                            Search by task, employee name, or
+                            Search by task,
+                            employee name, or
                             employee ID.
                         </p>
                     </div>
 
-                    {(search || status || priority) && (
+                    {(search ||
+                        status ||
+                        priority) && (
                         <button
                             type="button"
-                            onClick={handleClearFilters}
+                            onClick={
+                                handleClearFilters
+                            }
                             className="text-sm font-medium text-ettm-blue hover:underline"
                         >
                             Clear Filters
@@ -444,14 +509,16 @@ const TaskList = () => {
                             type="text"
                             value={search}
                             onChange={(event) =>
-                                setSearch(event.target.value)
+                                setSearch(
+                                    event.target.value
+                                )
                             }
                             placeholder="Task, employee name or ID..."
                             className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
                         />
                     </div>
 
-                    {/* Status frontend filter */}
+                    {/* Status backend filter */}
                     <div>
                         <label className="mb-2 block text-sm font-medium text-gray-700">
                             Status
@@ -460,7 +527,9 @@ const TaskList = () => {
                         <select
                             value={status}
                             onChange={(event) =>
-                                setStatus(event.target.value)
+                                setStatus(
+                                    event.target.value
+                                )
                             }
                             className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-ettm-blue"
                         >
@@ -479,14 +548,10 @@ const TaskList = () => {
                             <option value="Completed">
                                 Completed
                             </option>
-
-                            <option value="Cancelled">
-                                Cancelled
-                            </option>
                         </select>
                     </div>
 
-                    {/* Priority frontend filter */}
+                    {/* Priority backend filter */}
                     <div>
                         <label className="mb-2 block text-sm font-medium text-gray-700">
                             Priority
@@ -495,7 +560,9 @@ const TaskList = () => {
                         <select
                             value={priority}
                             onChange={(event) =>
-                                setPriority(event.target.value)
+                                setPriority(
+                                    event.target.value
+                                )
                             }
                             className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-ettm-blue"
                         >
@@ -517,6 +584,7 @@ const TaskList = () => {
                         </select>
                     </div>
 
+                    {/* Search button */}
                     <div className="flex items-end">
                         <button
                             type="submit"
@@ -539,15 +607,9 @@ const TaskList = () => {
                     </h2>
 
                     <p className="mt-1 text-xs text-gray-500">
-                        {status || priority
-                            ? `${filteredTasks.length} filtered task${
-                                  filteredTasks.length !== 1
-                                      ? "s"
-                                      : ""
-                              } found on this page`
-                            : totalCount > 0
-                              ? `Showing ${startItem}-${endItem} of ${totalCount} tasks`
-                              : "No tasks found"}
+                        {totalCount > 0
+                            ? `Showing ${startItem}-${endItem} of ${totalCount} tasks`
+                            : "No tasks found"}
                     </p>
                 </div>
 
@@ -562,82 +624,95 @@ const TaskList = () => {
                 ) : (
                     <Table
                         columns={columns}
-                        data={filteredTasks}
+                        data={tasks}
                         keyField="id"
                         emptyMessage="No tasks found. Try changing your filters."
-                        onRowClick={setSelectedTask}
+                        onRowClick={
+                            setSelectedTask
+                        }
                         className="rounded-none border-0"
                     />
                 )}
 
-                {/* Pagination */}
-                {!loading && totalCount > 0 && (
-                    <div className="flex flex-col gap-3 border-t border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                            <p className="text-sm text-gray-500">
-                                Page{" "}
-                                <span className="font-medium text-gray-700">
-                                    {page}
-                                </span>{" "}
-                                of{" "}
-                                <span className="font-medium text-gray-700">
-                                    {totalPages}
-                                </span>
-                            </p>
-
-                            {(status || priority) && (
-                                <p className="mt-1 text-xs text-gray-400">
-                                    Filters are applied to the
-                                    current page.
+                {/* Backend pagination */}
+                {!loading &&
+                    totalCount > 0 && (
+                        <div className="flex flex-col gap-3 border-t border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p className="text-sm text-gray-500">
+                                    Showing{" "}
+                                    <span className="font-medium text-gray-700">
+                                        {startItem}
+                                    </span>
+                                    {" - "}
+                                    <span className="font-medium text-gray-700">
+                                        {endItem}
+                                    </span>
+                                    {" of "}
+                                    <span className="font-medium text-gray-700">
+                                        {totalCount}
+                                    </span>
                                 </p>
-                            )}
-                        </div>
 
-                        <div className="flex gap-2">
-                            <button
-                                type="button"
-                                disabled={
-                                    !previousPage ||
-                                    loading ||
-                                    page <= 1
-                                }
-                                onClick={() =>
-                                    fetchTasks(
-                                        Math.max(1, page - 1),
-                                        search
-                                    )
-                                }
-                                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                                Previous
-                            </button>
-
-                            <div className="flex min-w-10 items-center justify-center rounded-lg bg-ettm-blue px-4 py-2 text-sm font-semibold text-white">
-                                {page}
+                                <p className="mt-1 text-xs text-gray-400">
+                                    Page {page} of{" "}
+                                    {totalPages}
+                                </p>
                             </div>
 
-                            <button
-                                type="button"
-                                disabled={!nextPage || loading}
-                                onClick={() =>
-                                    fetchTasks(
-                                        page + 1,
-                                        search
-                                    )
-                                }
-                                className="rounded-lg bg-ettm-blue px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-                            >
-                                Next
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    disabled={
+                                        !previousPage ||
+                                        loading ||
+                                        page <= 1
+                                    }
+                                    onClick={() =>
+                                        fetchTasks(
+                                            Math.max(
+                                                1,
+                                                page - 1
+                                            ),
+                                            appliedFilters
+                                        )
+                                    }
+                                    className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                    Previous
+                                </button>
+
+                                <div className="flex min-w-10 items-center justify-center rounded-lg bg-ettm-blue px-4 py-2 text-sm font-semibold text-white">
+                                    {page}
+                                </div>
+
+                                <button
+                                    type="button"
+                                    disabled={
+                                        !nextPage ||
+                                        loading
+                                    }
+                                    onClick={() =>
+                                        fetchTasks(
+                                            page + 1,
+                                            appliedFilters
+                                        )
+                                    }
+                                    className="rounded-lg bg-ettm-blue px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                    Next
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                )}
+                    )}
             </div>
 
             {/* Task details modal */}
             <Modal
                 isOpen={Boolean(selectedTask)}
-                onClose={() => setSelectedTask(null)}
+                onClose={() =>
+                    setSelectedTask(null)
+                }
                 title="Task Details"
                 size="large"
             >
@@ -652,7 +727,8 @@ const TaskList = () => {
 
                                 <p className="mt-1 text-sm text-gray-500">
                                     Task ID:{" "}
-                                    {selectedTask.id ?? "-"}
+                                    {selectedTask.id ??
+                                        "-"}
                                 </p>
                             </div>
 
@@ -661,7 +737,8 @@ const TaskList = () => {
                                     selectedTask.status
                                 )}`}
                             >
-                                {selectedTask.status || "-"}
+                                {selectedTask.status ||
+                                    "-"}
                             </span>
                         </div>
 
@@ -671,7 +748,8 @@ const TaskList = () => {
                             </p>
 
                             <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700">
-                                {selectedTask.description || "-"}
+                                {selectedTask.description ||
+                                    "-"}
                             </p>
                         </div>
 
@@ -703,7 +781,8 @@ const TaskList = () => {
                             <DetailItem
                                 label="Priority"
                                 value={
-                                    selectedTask.priority || "-"
+                                    selectedTask.priority ||
+                                    "-"
                                 }
                             />
 
@@ -744,17 +823,23 @@ const TaskList = () => {
                                 </h4>
 
                                 <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
-                                    {dailyUpdates.length} update
-                                    {dailyUpdates.length !== 1
+                                    {dailyUpdates.length}{" "}
+                                    update
+                                    {dailyUpdates.length !==
+                                    1
                                         ? "s"
                                         : ""}
                                 </span>
                             </div>
 
-                            {dailyUpdates.length > 0 ? (
+                            {dailyUpdates.length >
+                            0 ? (
                                 <div className="space-y-3">
                                     {dailyUpdates.map(
-                                        (update, index) => {
+                                        (
+                                            update,
+                                            index
+                                        ) => {
                                             const progress =
                                                 Math.min(
                                                     100,
@@ -846,8 +931,8 @@ const TaskList = () => {
                                 </div>
                             ) : (
                                 <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-5 text-center text-sm text-gray-500">
-                                    No daily updates have been
-                                    added.
+                                    No daily updates have
+                                    been added.
                                 </div>
                             )}
                         </div>
@@ -856,7 +941,9 @@ const TaskList = () => {
                             <button
                                 type="button"
                                 onClick={() =>
-                                    setSelectedTask(null)
+                                    setSelectedTask(
+                                        null
+                                    )
                                 }
                                 className="rounded-lg bg-ettm-blue px-5 py-2.5 text-sm font-medium text-white hover:opacity-90"
                             >

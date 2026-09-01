@@ -75,11 +75,13 @@ export const resetEmployeePassword = async (employeeId) => {
     return response.data;
 };
 
-// Get All Tasks
-export const getAllTasks = async ({
+    // Get All Tasks
+   export const getAllTasks = async ({
     page = 1,
     search = "",
-    page_size = 1000,
+    status = "",
+    priority = "",
+    page_size = 10,
 } = {}) => {
     const params = {
         page,
@@ -88,6 +90,14 @@ export const getAllTasks = async ({
 
     if (search.trim()) {
         params.search = search.trim();
+    }
+
+    if (status) {
+        params.status = status;
+    }
+
+    if (priority) {
+        params.priority = priority;
     }
 
     const response = await axiosInstance.get(
