@@ -43,7 +43,8 @@ const getRememberedLogin = () => {
 const Login = () => {
     const navigate = useNavigate();
 
-    const savedLogin = getRememberedLogin();
+    const savedLogin =
+        getRememberedLogin();
 
     const [formData, setFormData] =
         useState({
@@ -122,7 +123,6 @@ const Login = () => {
         }
 
         if (
-            formData.role &&
             !formData.employee_id.trim()
         ) {
             newErrors.employee_id =
@@ -227,7 +227,7 @@ const Login = () => {
             const trimmedEmployeeId =
                 formData.employee_id.trim();
 
-            // API functionality remains unchanged
+            // API request remains unchanged
             const loginData = {
                 role: formData.role,
                 employee_id:
@@ -266,7 +266,7 @@ const Login = () => {
                 );
             }
 
-            // Remember role, ID and password
+            // Remember login information
             if (rememberMe) {
                 localStorage.setItem(
                     "remembered_login",
@@ -284,7 +284,7 @@ const Login = () => {
                 );
             }
 
-            // Read only the current user_data entry
+            // Read the previously stored current user
             let previousUser = {};
 
             try {
@@ -387,13 +387,13 @@ const Login = () => {
                 )
             );
 
-            // Store employee details only once
+            // Keep only one user_data entry
             localStorage.setItem(
                 "user_data",
                 JSON.stringify(userDetails)
             );
 
-            // Remove old duplicate entries
+            // Remove old duplicate entries,
             // such as user_data_EMP1010
             Object.keys(
                 localStorage
@@ -480,6 +480,8 @@ const Login = () => {
         }
     };
 
+    // Default label is Employee ID.
+    // It changes only when Admin is selected.
     const idLabel =
         formData.role === "admin"
             ? "Admin ID"
@@ -592,33 +594,29 @@ const Login = () => {
                                 )}
                             </div>
 
-                            {/* Dynamic ID field */}
-                            {formData.role && (
-                                <Input
-                                    label={
-                                        idLabel
-                                    }
-                                    name="employee_id"
-                                    type="text"
-                                    autoComplete="off"
-                                    placeholder={
-                                        idPlaceholder
-                                    }
-                                    value={
-                                        formData.employee_id
-                                    }
-                                    onChange={
-                                        handleChange
-                                    }
-                                    error={
-                                        errors.employee_id
-                                    }
-                                    disabled={
-                                        loading
-                                    }
-                                    required
-                                />
-                            )}
+                            {/* ID input is always visible */}
+                            <Input
+                                label={idLabel}
+                                name="employee_id"
+                                type="text"
+                                autoComplete="off"
+                                placeholder={
+                                    idPlaceholder
+                                }
+                                value={
+                                    formData.employee_id
+                                }
+                                onChange={
+                                    handleChange
+                                }
+                                error={
+                                    errors.employee_id
+                                }
+                                disabled={
+                                    loading
+                                }
+                                required
+                            />
 
                             {/* Password */}
                             <div className="relative">
@@ -731,4 +729,3 @@ const Login = () => {
 };
 
 export default Login;
-// update
