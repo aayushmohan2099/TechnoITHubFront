@@ -1,187 +1,258 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
+
 import { getAllTasks } from "../../api/employeeApi";
+
+import Table from "../../components/common/Table";
+import Modal from "../../components/common/Modal";
+
+const PAGE_SIZE = 10;
 
 const TaskList = () => {
     const [tasks, setTasks] = useState([]);
-
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState("");
+    const [errorMessage, setErrorMessage] =
+        useState("");
 
-    // --------------------------------------------------
-    // Backend Search
-    // --------------------------------------------------
     const [search, setSearch] = useState("");
-
-    // --------------------------------------------------
-    // Frontend Filters
-    // --------------------------------------------------
     const [status, setStatus] = useState("");
     const [priority, setPriority] = useState("");
-
-    // --------------------------------------------------
-    // Pagination
-    // --------------------------------------------------
     const [page, setPage] = useState(1);
 
-    const [totalCount, setTotalCount] = useState(0);
-
-    const [nextPage, setNextPage] = useState(null);
-
-    const [previousPage, setPreviousPage] = useState(null);
-
-    const [selectedEmployee, setSelectedEmployee] =
+    const [selectedTask, setSelectedTask] =
         useState(null);
-    const [taskTab, setTaskTab] = useState("open");
 
-    // --------------------------------------------------
-    // Fetch Tasks
-    // --------------------------------------------------
-    const fetchTasks = async (
-        pageNumber = 1,
-        searchValue = ""
-    ) => {
-        try {
-            setLoading(true);
-            setError("");
+    // Prevent duplicate initial API call in development
+    const initialFetchRef = useRef(false);
 
-            let allTasks = [];
-            let currentPage = pageNumber;
-
-            const data = await getAllTasks({
-                page: currentPage,
-                search: searchValue.trim(),
-                page_size: 100,
-            });
-
-            const pageResults = Array.isArray(data?.results)
-                ? data.results
-                : Array.isArray(data?.data)
-                    ? data.data
-                    : Array.isArray(data)
-                        ? data
-                        : []; 
-
-            allTasks = [...allTasks, ...pageResults];
-
-            setTasks(allTasks);
-            setNextPage(null);
-            setPreviousPage(null);
-
-        } catch (err) {
-            console.error(
-                "Task List Error:",
-                err
-            );
-
-            setTasks([]);
-            setTotalCount(0);
-            setNextPage(null);
-            setPreviousPage(null);
-
-            setError(
-                err?.response?.data?.detail ||
-                err?.response?.data?.message ||
-                "Failed to load tasks."
-            );
-        } finally {
-            setLoading(false);
+    const extractTasks = (response) => {
+        if (Array.isArray(response)) {
+            return response;
         }
+
+        if (Array.isArray(response?.results)) {
+            return response.results;
+        }
+
+        if (Array.isArray(response?.data)) {
+            return response.data;
+        }
+
+        if (Array.isArray(response?.data?.results)) {
+            return response.data.results;
+        }
+
+        return [];
     };
 
-    useEffect(() => {
-        fetchTasks(1, "");
-    }, []);
+    const getErrorMessage = (error) => {
+        const backendError = error?.response?.data;
 
-    const normalizedTasks = useMemo(() => {
+        if (typeof backendError === "string") {
+            return backendError;
+        }
+
+        if (backendError?.detail) {
+            return Array.isArray(backendError.detail)
+                ? backendError.detail[0]
+                : backendError.detail;
+        }
+
+        if (backendError?.message) {
+            return Array.isArray(backendError.message)
+                ? backendError.message[0]
+                : backendError.message;
+        }
+
+        if (!error?.response) {
+            return "Unable to connect to the server.";
+        }
+
+        return "Failed to load tasks.";
+    };
+
+    const fetchTasks = useCallback(
+        async (searchValue = "") => {
+            try {
+                setLoading(true);
+                setErrorMessage("");
+
+                const response = await getAllTasks({
+                    page: 1,
+                    search: searchValue.trim(),
+                    page_size: 1000,
+                });
+
+                console.log(
+                    "Get All Tasks response:",
+                    response
+                );
+
+                const taskList =
+                    extractTasks(response);
+
+                setTasks(taskList);
+                setPage(1);
+            } catch (error) {
+                console.error(
+                    "Get All Tasks error:",
+                    error
+                );
+
+                setTasks([]);
+                setErrorMessage(
+                    getErrorMessage(error)
+                );
+            } finally {
+                setLoading(false);
+            }
+        },
+        []
+    );
+
+    // Initial API call
+    useEffect(() => {
+        if (initialFetchRef.current) {
+            return;
+        }
+
+        initialFetchRef.current = true;
+        fetchTasks();
+    }, [fetchTasks]);
+
+    // Apply status and priority filters
+    const filteredTasks = useMemo(() => {
         return tasks.filter((task) => {
+            const taskStatus = String(
+                task?.status || ""
+            ).toLowerCase();
+
+            const taskPriority = String(
+                task?.priority || ""
+            ).toLowerCase();
+
             const matchesStatus =
                 !status ||
-                task.status
-                    ?.toLowerCase() ===
-                status.toLowerCase();
+                taskStatus === status.toLowerCase();
 
             const matchesPriority =
                 !priority ||
-                task.priority
-                    ?.toLowerCase() ===
-                priority.toLowerCase();
+                taskPriority ===
+                    priority.toLowerCase();
 
-            return matchesStatus && matchesPriority;
+            return (
+                matchesStatus &&
+                matchesPriority
+            );
         });
     }, [tasks, status, priority]);
 
-    const employeeRows = useMemo(() => {
-        const grouped = new Map();
+    const totalTasks = filteredTasks.length;
 
-        normalizedTasks.forEach((task) => {
-            const employeeId =
-                task.assigned_to_emp_id ||
-                task.employee_id ||
-                task.assigned_to ||
-                task.assigned_to_name ||
-                "unknown";
-
-            const employeeName =
-                task.assigned_to_name || "Unknown Employee";
-
-            if (!grouped.has(employeeId)) {
-                grouped.set(employeeId, {
-                    employeeId,
-                    employeeName,
-                    tasks: [],
-                    creators: new Set(),
-                });
-            }
-
-            const employeeGroup = grouped.get(employeeId);
-            employeeGroup.tasks.push(task);
-
-            if (task.created_by_name) {
-                employeeGroup.creators.add(task.created_by_name);
-            }
-        });
-
-        return Array.from(grouped.values()).map((group) => {
-            const creators = [...group.creators].filter(Boolean);
-            const createdBy = creators.length > 1
-                ? `${creators.length} creators`
-                : creators[0] || "Unknown";
-
-            return {
-                ...group,
-                createdBy,
-            };
-        });
-    }, [normalizedTasks]);
-
-    const pageSize = 10;
-    const totalEmployeeCount = employeeRows.length;
-    const totalPages = Math.max(1, Math.ceil(totalEmployeeCount / pageSize));
-    const currentPageRows = employeeRows.slice(
-        (page - 1) * pageSize,
-        page * pageSize
+    const totalPages = Math.max(
+        1,
+        Math.ceil(totalTasks / PAGE_SIZE)
     );
-    const startTask = totalEmployeeCount === 0 ? 0 : (page - 1) * pageSize + 1;
-    const endTask = Math.min(page * pageSize, totalEmployeeCount);
+
+    const paginatedTasks = useMemo(() => {
+        const startIndex =
+            (page - 1) * PAGE_SIZE;
+
+        return filteredTasks.slice(
+            startIndex,
+            startIndex + PAGE_SIZE
+        );
+    }, [filteredTasks, page]);
+
+    const startItem =
+        totalTasks === 0
+            ? 0
+            : (page - 1) * PAGE_SIZE + 1;
+
+    const endItem = Math.min(
+        page * PAGE_SIZE,
+        totalTasks
+    );
 
     useEffect(() => {
-        setTotalCount(totalEmployeeCount);
-        setNextPage(totalEmployeeCount > page * pageSize ? "next" : null);
-        setPreviousPage(page > 1 ? "previous" : null);
-    }, [employeeRows, totalEmployeeCount, page]);
+        if (page > totalPages) {
+            setPage(totalPages);
+        }
+    }, [page, totalPages]);
 
-    const formatDate = (date) => {
-        if (!date) return "-";
-
-        return new Date(date).toLocaleDateString("en-IN", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-        });
+    const handleSearchSubmit = (
+        event
+    ) => {
+        event.preventDefault();
+        fetchTasks(search);
     };
 
-    const priorityClass = (value) => {
-        switch (value?.toLowerCase()) {
+    const handleClearFilters = () => {
+        setSearch("");
+        setStatus("");
+        setPriority("");
+        setPage(1);
+        fetchTasks("");
+    };
+
+    const formatDate = (dateValue) => {
+        if (!dateValue) {
+            return "-";
+        }
+
+        const date = new Date(dateValue);
+
+        if (Number.isNaN(date.getTime())) {
+            return dateValue;
+        }
+
+        return date.toLocaleDateString(
+            "en-IN",
+            {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+            }
+        );
+    };
+
+    const formatDateTime = (dateValue) => {
+        if (!dateValue) {
+            return "-";
+        }
+
+        const date = new Date(dateValue);
+
+        if (Number.isNaN(date.getTime())) {
+            return dateValue;
+        }
+
+        return date.toLocaleString(
+            "en-IN",
+            {
+                day: "2-digit",
+                month: "short",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+            }
+        );
+    };
+
+    const getPriorityClass = (
+        priorityValue
+    ) => {
+        switch (
+            String(
+                priorityValue || ""
+            ).toLowerCase()
+        ) {
             case "high":
                 return "bg-red-100 text-red-700";
 
@@ -196,45 +267,142 @@ const TaskList = () => {
         }
     };
 
-    const statusClass = (value) => {
-        switch (value?.toLowerCase()) {
-            case "pending":
-                return "bg-yellow-100 text-yellow-700";
+   const getStatusClass = (statusValue) => {
+    switch (
+        String(statusValue || "").toLowerCase()
+    ) {
+        case "pending":
+            return "bg-yellow-100 text-yellow-700";
 
-            case "in progress":
-                return "bg-blue-100 text-blue-700";
+        case "in progress":
+        case "in-progress":
+        case "in_progress":
+            return "bg-blue-100 text-blue-700";
 
-            case "completed":
-                return "bg-green-100 text-green-700";
+        case "completed":
+            return "bg-green-100 text-green-700";
 
-            case "cancelled":
-                return "bg-red-100 text-red-700";
+        case "cancelled":
+        case "canceled":
+            return "bg-red-100 text-red-700";
 
-            default:
-                return "bg-gray-100 text-gray-700";
-        }
-    };
+        default:
+            return "bg-gray-100 text-gray-700";
+    }
+};
 
-    // --------------------------------------------------
-    // Clear Filters
-    // --------------------------------------------------
-    const handleClearFilters = () => {
-        setSearch("");
-        setStatus("");
-        setPriority("");
-        setPage(1);
-    };
+    const columns = [
+        {
+            key: "serial_number",
+            label: "Sr. No.",
+            render: (_task, rowIndex) =>
+                (page - 1) * PAGE_SIZE +
+                rowIndex +
+                1,
+        },
+        {
+            key: "title",
+            label: "Task",
+            render: (task) => (
+                <div>
+                    <p className="font-semibold text-gray-800">
+                        {task.title ||
+                            "Untitled Task"}
+                    </p>
+
+                    <p className="mt-1 text-xs text-gray-500">
+                        Task ID: {task.id ?? "-"}
+                    </p>
+                </div>
+            ),
+        },
+        {
+            key: "assigned_to_name",
+            label: "Assigned To",
+            render: (task) => (
+                <div>
+                    <p className="font-medium text-gray-800">
+                        {task.assigned_to_name ||
+                            "Unknown Employee"}
+                    </p>
+
+                    <p className="mt-1 text-xs text-gray-500">
+                        {task.assigned_to_emp_id ||
+                            "-"}
+                    </p>
+                </div>
+            ),
+        },
+        {
+            key: "created_by_name",
+            label: "Created By",
+            render: (task) =>
+                task.created_by_name || "-",
+        },
+        {
+            key: "start_date",
+            label: "Start Date",
+            render: (task) =>
+                formatDate(task.start_date),
+        },
+        {
+            key: "deadline",
+            label: "Deadline",
+            render: (task) =>
+                formatDate(task.deadline),
+        },
+        {
+            key: "priority",
+            label: "Priority",
+            render: (task) => (
+                <span
+                    className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getPriorityClass(
+                        task.priority
+                    )}`}
+                >
+                    {task.priority || "-"}
+                </span>
+            ),
+        },
+        {
+            key: "status",
+            label: "Status",
+            render: (task) => (
+                <span
+                    className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
+                        task.status
+                    )}`}
+                >
+                    {task.status || "-"}
+                </span>
+            ),
+        },
+        {
+            key: "actions",
+            label: "Action",
+            render: (task) => (
+                <button
+                    type="button"
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        setSelectedTask(task);
+                    }}
+                    className="rounded-lg border border-ettm-blue px-4 py-2 text-xs font-semibold text-ettm-blue transition hover:bg-ettm-blue hover:text-white"
+                >
+                    View
+                </button>
+            ),
+        },
+    ];
+
+    const dailyUpdates =
+        selectedTask?.daily_updates || [];
 
     return (
         <div className="min-h-full bg-gray-50 p-6">
-
-            {/* ==========================================
-                HEADER
-            ========================================== */}
-            <div className="mb-6 flex items-center justify-between">
-
+            {/* Header */}
+            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-
                     <h1 className="text-2xl font-semibold text-ettm-blue">
                         Task List
                     </h1>
@@ -243,79 +411,67 @@ const TaskList = () => {
                         View all tasks assigned
                         to employees.
                     </p>
-
                 </div>
 
                 <button
                     type="button"
                     onClick={() =>
-                        fetchTasks(
-                            page,
-                            search
-                        )
+                        fetchTasks(search)
                     }
                     disabled={loading}
-                    className="rounded-lg bg-ettm-blue px-5 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-lg bg-ettm-blue px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                     {loading
                         ? "Refreshing..."
                         : "Refresh"}
                 </button>
-
             </div>
 
-            {/* ==========================================
-                ERROR
-            ========================================== */}
-            {error && (
+            {/* Error message */}
+            {errorMessage && (
                 <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {error}
+                    {errorMessage}
                 </div>
             )}
 
-            {/* ==========================================
-                FILTERS
-            ========================================== */}
-            <div className="mb-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-
+            {/* Search and filters */}
+            <form
+                onSubmit={
+                    handleSearchSubmit
+                }
+                className="mb-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
+            >
                 <div className="mb-4 flex items-center justify-between">
-
                     <div>
-
                         <h2 className="text-base font-semibold text-gray-800">
                             Search & Filters
                         </h2>
 
                         <p className="mt-1 text-xs text-gray-500">
-                            Search tasks across
-                            all pages.
+                            Search tasks by task
+                            title, employee name,
+                            or employee ID.
                         </p>
-
                     </div>
 
                     {(search ||
                         status ||
                         priority) && (
-
-                            <button
-                                type="button"
-                                onClick={
-                                    handleClearFilters
-                                }
-                                className="text-sm font-medium text-ettm-blue hover:underline"
-                            >
-                                Clear Filters
-                            </button>
-
-                        )}
-
+                        <button
+                            type="button"
+                            onClick={
+                                handleClearFilters
+                            }
+                            className="text-sm font-medium text-ettm-blue hover:underline"
+                        >
+                            Clear Filters
+                        </button>
+                    )}
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-
-                    {/* SEARCH */}
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                    {/* Search */}
                     <div>
-
                         <label className="mb-2 block text-sm font-medium text-gray-700">
                             Search
                         </label>
@@ -323,41 +479,32 @@ const TaskList = () => {
                         <input
                             type="text"
                             value={search}
-                            onChange={(e) =>
+                            onChange={(event) =>
                                 setSearch(
-                                    e.target.value
+                                    event.target.value
                                 )
                             }
                             placeholder="Task, employee name or ID..."
                             className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
                         />
-
-                        {search && (
-                            <p className="mt-1 text-xs text-gray-400">
-                                Searching for
-                                "{search}"
-                            </p>
-                        )}
-
                     </div>
 
-                    {/* STATUS */}
+                    {/* Status */}
                     <div>
-
                         <label className="mb-2 block text-sm font-medium text-gray-700">
                             Status
                         </label>
 
                         <select
                             value={status}
-                            onChange={(e) =>
+                            onChange={(event) => {
                                 setStatus(
-                                    e.target.value
-                                )
-                            }
+                                    event.target.value
+                                );
+                                setPage(1);
+                            }}
                             className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-ettm-blue"
                         >
-
                             <option value="">
                                 All Status
                             </option>
@@ -377,231 +524,110 @@ const TaskList = () => {
                             <option value="Cancelled">
                                 Cancelled
                             </option>
-
                         </select>
-
                     </div>
 
-                    {/* PRIORITY */}
+                    {/* Priority */}
                     <div>
-
                         <label className="mb-2 block text-sm font-medium text-gray-700">
                             Priority
                         </label>
 
                         <select
                             value={priority}
-                            onChange={(e) =>
+                            onChange={(event) => {
                                 setPriority(
-                                    e.target.value
-                                )
-                            }
+                                    event.target.value
+                                );
+                                setPage(1);
+                            }}
                             className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-ettm-blue"
                         >
-
                             <option value="">
                                 All Priorities
                             </option>
 
-                            <option value="high">
+                            <option value="High">
                                 High
                             </option>
 
-                            <option value="medium">
+                            <option value="Medium">
                                 Medium
                             </option>
 
-                            <option value="low">
+                            <option value="Low">
                                 Low
                             </option>
-
                         </select>
-
                     </div>
 
+                    {/* Search button */}
+                    <div className="flex items-end">
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="w-full rounded-lg bg-ettm-blue px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            {loading
+                                ? "Searching..."
+                                : "Search"}
+                        </button>
+                    </div>
                 </div>
+            </form>
 
-<div>
-                    <button
-                    type="button"
-                    onClick={() =>
-                        fetchTasks(
-                            page,
-                            search
-                        )
-                    }
-                    disabled={loading}
-                    className="rounded-lg bg-ettm-blue px-5 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                    {loading
-                        ? "Fetching..."
-                        : "Fetch"}
-                </button>
-</div>
-
-            </div>
-
-            {/* ==========================================
-                TASK TABLE
-            ========================================== */}
-            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-
+            {/* Task table section */}
+            <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
                 <div className="border-b border-gray-200 px-5 py-4">
-
                     <h2 className="text-lg font-semibold text-gray-800">
                         All Tasks
                     </h2>
 
                     <p className="mt-1 text-xs text-gray-500">
-                        {totalCount > 0
-                            ? `Showing ${startTask}-${endTask} of ${totalCount} tasks`
+                        {totalTasks > 0
+                            ? `Showing ${startItem}-${endItem} of ${totalTasks} tasks`
                             : "No tasks found"}
                     </p>
-
                 </div>
 
                 {loading ? (
-
                     <div className="py-16 text-center">
-
                         <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-ettm-blue" />
 
                         <p className="mt-3 text-sm text-gray-500">
                             Loading tasks...
                         </p>
-
                     </div>
-
-                ) : currentPageRows.length ===
-                    0 ? (
-
-                    <div className="py-16 text-center">
-
-                        <p className="text-sm font-medium text-gray-700">
-                            No tasks found
-                        </p>
-
-                        <p className="mt-1 text-xs text-gray-500">
-                            Try changing your
-                            search or filters.
-                        </p>
-
-                    </div>
-
                 ) : (
-
-                    <div className="overflow-x-auto">
-
-                        <table className="w-full min-w-[800px]">
-
-                            <thead className="bg-gray-50">
-
-                                <tr>
-
-                                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-gray-500">
-                                        Sr. No
-                                    </th>
-
-                                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-gray-500">
-                                        Name
-                                    </th>
-
-                                    <th className="px-5 py-3 text-left text-xs font-semibold uppercase text-gray-500">
-                                        Created By
-                                    </th>
-
-                                    <th className="px-5 py-3 text-center text-xs font-semibold uppercase text-gray-500">
-                                        Action
-                                    </th>
-
-                                </tr>
-
-                            </thead>
-
-                            <tbody className="divide-y divide-gray-100">
-
-                                {currentPageRows.map(
-                                    (employee, index) => (
-
-                                        <tr
-                                            key={
-                                                employee.employeeId
-                                            }
-                                            className="hover:bg-gray-50"
-                                        >
-
-                                            <td className="px-5 py-4 text-sm font-medium text-gray-700">
-                                                {(page - 1) * pageSize + index + 1}
-                                            </td>
-
-                                            <td className="px-5 py-4">
-                                                <p className="text-sm font-semibold text-gray-800">
-                                                    {employee.employeeName || "Unknown Employee"}
-                                                </p>
-                                                {employee.employeeId && employee.employeeId !== "unknown" && (
-                                                    <p className="mt-1 text-xs text-gray-500">
-                                                        {employee.employeeId}
-                                                    </p>
-                                                )}
-                                            </td>
-
-                                            <td className="px-5 py-4 text-sm text-gray-700">
-                                                {employee.createdBy || "-"}
-                                            </td>
-
-                                            <td className="px-5 py-4 text-center">
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        setSelectedEmployee(employee)
-                                                    }
-                                                    className="rounded-lg border border-gray-300 px-4 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100"
-                                                >
-                                                    View Tasks
-                                                </button>
-                                            </td>
-
-                                        </tr>
-
-                                    )
-                                )}
-
-                            </tbody>
-
-                        </table>
-
-                    </div>
-
+                    <Table
+                        columns={columns}
+                        data={paginatedTasks}
+                        keyField="id"
+                        emptyMessage="No tasks found. Try changing your search or filters."
+                        onRowClick={
+                            setSelectedTask
+                        }
+                        className="rounded-none border-0"
+                    />
                 )}
 
-                {/* ======================================
-                    PAGINATION
-                ====================================== */}
+                {/* Pagination */}
                 {!loading &&
-                    totalCount > 0 && (
-
+                    totalTasks > 0 && (
                         <div className="flex flex-col gap-3 border-t border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-
                             <div>
-
                                 <p className="text-sm text-gray-500">
                                     Showing{" "}
                                     <span className="font-medium text-gray-700">
-                                        {
-                                            startTask
-                                        }
+                                        {startItem}
                                     </span>
                                     {" - "}
                                     <span className="font-medium text-gray-700">
-                                        {
-                                            endTask
-                                        }
+                                        {endItem}
                                     </span>
                                     {" of "}
                                     <span className="font-medium text-gray-700">
-                                        {
-                                            totalCount
-                                        }
+                                        {totalTasks}
                                     </span>
                                 </p>
 
@@ -609,28 +635,23 @@ const TaskList = () => {
                                     Page {page} of{" "}
                                     {totalPages}
                                 </p>
-
                             </div>
 
                             <div className="flex gap-2">
-
-                                {/* PREVIOUS */}
                                 <button
                                     type="button"
                                     disabled={
-                                        !previousPage ||
-                                        loading ||
                                         page <= 1
                                     }
                                     onClick={() =>
                                         setPage(
                                             (
-                                                current
+                                                currentPage
                                             ) =>
                                                 Math.max(
                                                     1,
-                                                    current -
-                                                    1
+                                                    currentPage -
+                                                        1
                                                 )
                                         )
                                     }
@@ -639,26 +660,22 @@ const TaskList = () => {
                                     Previous
                                 </button>
 
-                                {/* PAGE */}
                                 <div className="flex min-w-10 items-center justify-center rounded-lg bg-ettm-blue px-4 py-2 text-sm font-semibold text-white">
                                     {page}
                                 </div>
 
-                                {/* NEXT */}
                                 <button
                                     type="button"
                                     disabled={
-                                        !nextPage ||
-                                        loading ||
                                         page >=
                                         totalPages
                                     }
                                     onClick={() =>
                                         setPage(
                                             (
-                                                current
+                                                currentPage
                                             ) =>
-                                                current +
+                                                currentPage +
                                                 1
                                         )
                                     }
@@ -666,183 +683,330 @@ const TaskList = () => {
                                 >
                                     Next
                                 </button>
-
                             </div>
-
                         </div>
-
                     )}
-
             </div>
 
-            {/* ==========================================
-                EMPLOYEE TASKS MODAL
-            ========================================== */}
-            {selectedEmployee && (
-
-                <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-                    onClick={() =>
-                        setSelectedEmployee(null)
-                    }
-                >
-
-                    <div
-                        className="w-full max-w-3xl rounded-xl bg-white shadow-xl"
-                        onClick={(e) =>
-                            e.stopPropagation()
-                        }
-                    >
-
-                        <div className="flex items-center justify-between border-b px-6 py-4">
-
+            {/* Task details modal */}
+            <Modal
+                isOpen={Boolean(selectedTask)}
+                onClose={() =>
+                    setSelectedTask(null)
+                }
+                title="Task Details"
+                size="large"
+            >
+                {selectedTask && (
+                    <div className="space-y-6">
+                        {/* Title and status */}
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div>
+                                <h3 className="text-xl font-semibold text-gray-900">
+                                    {selectedTask.title ||
+                                        "Untitled Task"}
+                                </h3>
 
-                                <h2 className="text-lg font-semibold text-gray-800">
-                                    {selectedEmployee.employeeName || "Employee Tasks"}
-                                </h2>
-
-                                {selectedEmployee.employeeId && selectedEmployee.employeeId !== "unknown" && (
-                                    <p className="text-xs text-gray-500">
-                                        {selectedEmployee.employeeId}
-                                    </p>
-                                )}
-
+                                <p className="mt-1 text-sm text-gray-500">
+                                    Task ID:{" "}
+                                    {selectedTask.id ??
+                                        "-"}
+                                </p>
                             </div>
 
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setSelectedEmployee(null)
-                                }
-                                className="text-2xl text-gray-400 hover:text-gray-700"
+                            <span
+                                className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
+                                    selectedTask.status
+                                )}`}
                             >
-                                ×
-                            </button>
-
+                                {selectedTask.status ||
+                                    "-"}
+                            </span>
                         </div>
 
-                        <div className="max-h-[70vh] overflow-y-auto px-6 py-5">
+                        {/* Description */}
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                                Description
+                            </p>
 
-                            {(() => {
-                                const completedTasks = selectedEmployee.tasks.filter(
-                                    (task) => task.status?.toLowerCase() === "completed"
-                                );
-
-                                const openTasks = selectedEmployee.tasks.filter(
-                                    (task) => task.status?.toLowerCase() !== "completed"
-                                );
-
-                                const tabs = [
-                                    { key: "open", label: "Open Tasks", items: openTasks },
-                                    { key: "completed", label: "Completed Tasks", items: completedTasks },
-                                ];
-
-                                const activeTab = tabs.find((tab) => tab.key === taskTab) || tabs[0];
-
-                                return (
-                                    <div className="space-y-4">
-                                        <div className="flex gap-2 border-b border-gray-200 pb-3">
-                                            {tabs.map((tab) => (
-                                                <button
-                                                    key={tab.key}
-                                                    type="button"
-                                                    onClick={() => setTaskTab(tab.key)}
-                                                    className={`rounded-lg px-4 py-2 text-sm font-medium transition ${taskTab === tab.key
-                                                        ? "bg-ettm-blue text-white"
-                                                        : "border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"}`}
-                                                >
-                                                    {tab.label}
-                                                    {tab.items.length > 0 && (
-                                                        <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-semibold">
-                                                            {tab.items.length}
-                                                        </span>
-                                                    )}
-                                                </button>
-                                            ))}
-                                        </div>
-
-                                        {activeTab.items.length > 0 ? (
-                                            <div className="space-y-3">
-                                                {activeTab.items.map((task) => (
-                                                    <div
-                                                        key={task.id}
-                                                        className={`rounded-lg border p-4 ${activeTab.key === "completed" ? "border-gray-200 bg-green-50" : "border-gray-200 bg-gray-50"}`}
-                                                    >
-                                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                                            <div className="flex-1">
-                                                                <p className="text-sm font-semibold text-gray-800">
-                                                                    {task.title || "Untitled Task"}
-                                                                </p>
-                                                                <p className="mt-1 text-xs text-gray-500">
-                                                                    Task #{task.id || "-"}
-                                                                </p>
-                                                            </div>
-                                                            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusClass(task.status)}`}>
-                                                                {task.status || "-"}
-                                                            </span>
-                                                        </div>
-
-                                                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                                                            <div>
-                                                                <p className="text-[11px] uppercase tracking-wide text-gray-400">Description</p>
-                                                                <p className="mt-1 text-sm text-gray-700">
-                                                                    {task.description || "-"}
-                                                                </p>
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-[11px] uppercase tracking-wide text-gray-400">Priority</p>
-                                                                <span className={`mt-1 inline-block rounded-full px-3 py-1 text-xs font-semibold capitalize ${priorityClass(task.priority)}`}>
-                                                                    {task.priority || "No Priority"}
-                                                                </span>
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-[11px] uppercase tracking-wide text-gray-400">Start Date</p>
-                                                                <p className="mt-1 text-sm text-gray-700">
-                                                                    {formatDate(task.start_date)}
-                                                                </p>
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-[11px] uppercase tracking-wide text-gray-400">Deadline</p>
-                                                                <p className="mt-1 text-sm text-gray-700">
-                                                                    {formatDate(task.deadline)}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-500">
-                                                No {activeTab.key === "completed" ? "completed" : "open"} tasks
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })()}
-
+                            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700">
+                                {selectedTask.description ||
+                                    "-"}
+                            </p>
                         </div>
 
-                        <div className="flex justify-end border-t px-6 py-4">
+                        {/* Main details */}
+                        <div className="grid grid-cols-1 gap-4 rounded-xl bg-gray-50 p-4 sm:grid-cols-2">
+                            <DetailItem
+                                label="Assigned Employee"
+                                value={
+                                    selectedTask.assigned_to_name ||
+                                    "-"
+                                }
+                            />
 
+                            <DetailItem
+                                label="Employee ID"
+                                value={
+                                    selectedTask.assigned_to_emp_id ||
+                                    "-"
+                                }
+                            />
+
+                            <DetailItem
+                                label="Assigned User ID"
+                                value={
+                                    selectedTask.assigned_to ??
+                                    "-"
+                                }
+                            />
+
+                            <DetailItem
+                                label="Created By"
+                                value={
+                                    selectedTask.created_by_name ||
+                                    "-"
+                                }
+                            />
+
+                            <DetailItem
+                                label="Created By ID"
+                                value={
+                                    selectedTask.created_by ??
+                                    "-"
+                                }
+                            />
+
+                            <DetailItem
+                                label="Priority"
+                                value={
+                                    <span
+                                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getPriorityClass(
+                                            selectedTask.priority
+                                        )}`}
+                                    >
+                                        {selectedTask.priority ||
+                                            "-"}
+                                    </span>
+                                }
+                            />
+
+                            <DetailItem
+                                label="Start Date"
+                                value={formatDate(
+                                    selectedTask.start_date
+                                )}
+                            />
+
+                            <DetailItem
+                                label="Deadline"
+                                value={formatDate(
+                                    selectedTask.deadline
+                                )}
+                            />
+
+                            <DetailItem
+                                label="Created At"
+                                value={formatDateTime(
+                                    selectedTask.created_at
+                                )}
+                            />
+
+                            <DetailItem
+                                label="Updated At"
+                                value={formatDateTime(
+                                    selectedTask.updated_at
+                                )}
+                            />
+                        </div>
+
+                        {/* Daily updates */}
+                        {/* Daily updates */}
+<div>
+    <div className="mb-3 flex items-center justify-between">
+        <h4 className="text-base font-semibold text-gray-800">
+            Daily Updates
+        </h4>
+
+        <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
+            {dailyUpdates.length} update
+            {dailyUpdates.length !== 1 ? "s" : ""}
+        </span>
+    </div>
+
+    {dailyUpdates.length > 0 ? (
+        <div className="space-y-3">
+            {dailyUpdates.map((update, index) => {
+                const progressPercent = Math.min(
+                    100,
+                    Math.max(
+                        0,
+                        Number(
+                            update.progress_percent || 0
+                        )
+                    )
+                );
+
+                return (
+                    <div
+                        key={update.id || index}
+                        className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
+                    >
+                        {/* Update heading */}
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                                <p className="text-sm font-semibold text-gray-800">
+                                    {update.task_title ||
+                                        `Update ${index + 1}`}
+                                </p>
+
+                                <p className="mt-1 text-xs text-gray-500">
+                                    Updated by:{" "}
+                                    <span className="font-semibold text-gray-700">
+                                        {update.employee_name ||
+                                            "-"}
+                                    </span>
+                                </p>
+                            </div>
+
+                            <span
+                                className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
+                                    update.task_status
+                                )}`}
+                            >
+                                {update.task_status || "-"}
+                            </span>
+                        </div>
+
+                        {/* Update text */}
+                        <div className="mt-4">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                                Progress Update
+                            </p>
+
+                            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700">
+                                {update.update_text ||
+                                    "No update text provided."}
+                            </p>
+                        </div>
+
+                        {/* Progress */}
+                        <div className="mt-4">
+                            <div className="mb-2 flex items-center justify-between">
+                                <p className="text-xs font-semibold text-gray-500">
+                                    Task Progress
+                                </p>
+
+                                <p className="text-xs font-bold text-ettm-blue">
+                                    {progressPercent}%
+                                </p>
+                            </div>
+
+                            <div className="h-2.5 w-full overflow-hidden rounded-full bg-gray-200">
+                                <div
+                                    className={`h-full rounded-full transition-all ${
+                                        progressPercent >= 100
+                                            ? "bg-green-600"
+                                            : progressPercent >= 50
+                                              ? "bg-ettm-blue"
+                                              : "bg-yellow-500"
+                                    }`}
+                                    style={{
+                                        width: `${progressPercent}%`,
+                                    }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Update information */}
+                        <div className="mt-4 grid grid-cols-1 gap-3 border-t border-gray-100 pt-4 sm:grid-cols-2">
+                            <div>
+                                <p className="text-xs text-gray-400">
+                                    Task ID
+                                </p>
+
+                                <p className="mt-1 text-sm font-medium text-gray-700">
+                                    {update.task || "-"}
+                                </p>
+                            </div>
+
+                            <div>
+                                <p className="text-xs text-gray-400">
+                                    Employee User ID
+                                </p>
+
+                                <p className="mt-1 text-sm font-medium text-gray-700">
+                                    {update.employee || "-"}
+                                </p>
+                            </div>
+
+                            <div>
+                                <p className="text-xs text-gray-400">
+                                    Created At
+                                </p>
+
+                                <p className="mt-1 text-sm font-medium text-gray-700">
+                                    {formatDateTime(
+                                        update.created_at
+                                    )}
+                                </p>
+                            </div>
+
+                            <div>
+                                <p className="text-xs text-gray-400">
+                                    Updated At
+                                </p>
+
+                                <p className="mt-1 text-sm font-medium text-gray-700">
+                                    {formatDateTime(
+                                        update.updated_at
+                                    )}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    ) : (
+        <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-5 text-center text-sm text-gray-500">
+            No daily updates have been added for this task.
+        </div>
+    )}
+</div>
+
+                        {/* Close button */}
+                        <div className="flex justify-end border-t border-gray-200 pt-4">
                             <button
                                 type="button"
                                 onClick={() =>
-                                    setSelectedEmployee(null)
+                                    setSelectedTask(
+                                        null
+                                    )
                                 }
-                                className="rounded-lg bg-ettm-blue px-5 py-2.5 text-sm font-medium text-white hover:opacity-90"
+                                className="rounded-lg bg-ettm-blue px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
                             >
                                 Close
                             </button>
-
                         </div>
-
                     </div>
+                )}
+            </Modal>
+        </div>
+    );
+};
 
-                </div>
+const DetailItem = ({ label, value }) => {
+    return (
+        <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                {label}
+            </p>
 
-            )}
-
+            <div className="mt-1 text-sm font-medium text-gray-800">
+                {value}
+            </div>
         </div>
     );
 };
