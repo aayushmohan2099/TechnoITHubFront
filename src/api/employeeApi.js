@@ -81,11 +81,11 @@ export const resetEmployeePassword = async (employeeId) => {
     search = "",
     status = "",
     priority = "",
-    page_size = 10,
+    
 } = {}) => {
     const params = {
         page,
-        page_size,
+        
     };
 
     if (search.trim()) {
@@ -114,11 +114,11 @@ export const resetEmployeePassword = async (employeeId) => {
 export const getAttendanceHistory = async ({
     page = 1,
     date = "",
-    page_size = 1000,
+    
 } = {}) => {
     const params = {
         page,
-        page_size,
+       
     };
 
     if (date) {
