@@ -44,7 +44,7 @@ const Sidebar = ({ role = "admin" }) => {
         },
         {
             name: "See Employees",
-            path: "/admin/employees/list",
+            path: "/admin/employeess/list",
             icon: <FaUserShield />,
         },
     ];

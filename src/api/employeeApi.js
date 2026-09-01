@@ -139,9 +139,14 @@ export const punchAttendance = async () => {
 };
 
 // Employee Tasks
-export const getMyTasks = async () => {
+export const getMyTasks = async (page = 1) => {
     const response = await axiosInstance.get(
-        "api/v1/tasks/employee/my-tasks/"
+        "api/v1/tasks/employee/my-tasks/",
+        {
+            params: {
+                page,
+            },
+        }
     );
 
     return response.data;

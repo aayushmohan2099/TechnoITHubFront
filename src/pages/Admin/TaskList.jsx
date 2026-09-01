@@ -7,48 +7,57 @@ import React, {
 } from "react";
 
 import { getAllTasks } from "../../api/employeeApi";
-
 import Table from "../../components/common/Table";
 import Modal from "../../components/common/Modal";
 
 const PAGE_SIZE = 10;
 
+const extractTasks = (response) => {
+    if (Array.isArray(response)) {
+        return response;
+    }
+
+    if (Array.isArray(response?.results)) {
+        return response.results;
+    }
+
+    if (Array.isArray(response?.data)) {
+        return response.data;
+    }
+
+    if (Array.isArray(response?.data?.results)) {
+        return response.data.results;
+    }
+
+    return [];
+};
+
+// Makes "In Progress", "In-Progress" and "In_Progress" equal
+const normalizeFilterValue = (value) => {
+    return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[\s_-]+/g, "");
+};
+
 const TaskList = () => {
     const [tasks, setTasks] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [errorMessage, setErrorMessage] =
-        useState("");
+    const [errorMessage, setErrorMessage] = useState("");
 
     const [search, setSearch] = useState("");
     const [status, setStatus] = useState("");
     const [priority, setPriority] = useState("");
-    const [page, setPage] = useState(1);
 
-    const [selectedTask, setSelectedTask] =
-        useState(null);
+    const [page, setPage] = useState(1);
+    const [totalCount, setTotalCount] = useState(0);
+    const [nextPage, setNextPage] = useState(null);
+    const [previousPage, setPreviousPage] = useState(null);
+
+    const [selectedTask, setSelectedTask] = useState(null);
 
     // Prevent duplicate initial API call in development
     const initialFetchRef = useRef(false);
-
-    const extractTasks = (response) => {
-        if (Array.isArray(response)) {
-            return response;
-        }
-
-        if (Array.isArray(response?.results)) {
-            return response.results;
-        }
-
-        if (Array.isArray(response?.data)) {
-            return response.data;
-        }
-
-        if (Array.isArray(response?.data?.results)) {
-            return response.data.results;
-        }
-
-        return [];
-    };
 
     const getErrorMessage = (error) => {
         const backendError = error?.response?.data;
@@ -77,37 +86,54 @@ const TaskList = () => {
     };
 
     const fetchTasks = useCallback(
-        async (searchValue = "") => {
+        async (pageNumber = 1, searchValue = "") => {
             try {
                 setLoading(true);
                 setErrorMessage("");
 
                 const response = await getAllTasks({
-                    page: 1,
+                    page: pageNumber,
                     search: searchValue.trim(),
-                    page_size: 1000,
                 });
 
-                console.log(
-                    "Get All Tasks response:",
-                    response
-                );
+                console.log("Get All Tasks Response:", response);
 
-                const taskList =
-                    extractTasks(response);
+                const taskResults = extractTasks(response);
 
-                setTasks(taskList);
-                setPage(1);
+                setTasks(taskResults);
+                setPage(pageNumber);
+
+                if (Array.isArray(response)) {
+                    setTotalCount(response.length);
+                    setNextPage(null);
+                    setPreviousPage(null);
+                } else {
+                    setTotalCount(
+                        response?.count ??
+                            response?.data?.count ??
+                            taskResults.length
+                    );
+
+                    setNextPage(
+                        response?.next ??
+                            response?.data?.next ??
+                            null
+                    );
+
+                    setPreviousPage(
+                        response?.previous ??
+                            response?.data?.previous ??
+                            null
+                    );
+                }
             } catch (error) {
-                console.error(
-                    "Get All Tasks error:",
-                    error
-                );
+                console.error("Get All Tasks Error:", error);
 
                 setTasks([]);
-                setErrorMessage(
-                    getErrorMessage(error)
-                );
+                setTotalCount(0);
+                setNextPage(null);
+                setPreviousPage(null);
+                setErrorMessage(getErrorMessage(error));
             } finally {
                 setLoading(false);
             }
@@ -115,89 +141,57 @@ const TaskList = () => {
         []
     );
 
-    // Initial API call
     useEffect(() => {
         if (initialFetchRef.current) {
             return;
         }
 
         initialFetchRef.current = true;
-        fetchTasks();
+        fetchTasks(1, "");
     }, [fetchTasks]);
 
-    // Apply status and priority filters
+    // Status and priority are filtered on the frontend
     const filteredTasks = useMemo(() => {
         return tasks.filter((task) => {
-            const taskStatus = String(
-                task?.status || ""
-            ).toLowerCase();
-
-            const taskPriority = String(
-                task?.priority || ""
-            ).toLowerCase();
-
             const matchesStatus =
                 !status ||
-                taskStatus === status.toLowerCase();
+                normalizeFilterValue(task.status) ===
+                    normalizeFilterValue(status);
 
             const matchesPriority =
                 !priority ||
-                taskPriority ===
-                    priority.toLowerCase();
+                normalizeFilterValue(task.priority) ===
+                    normalizeFilterValue(priority);
 
-            return (
-                matchesStatus &&
-                matchesPriority
-            );
+            return matchesStatus && matchesPriority;
         });
     }, [tasks, status, priority]);
 
-    const totalTasks = filteredTasks.length;
-
     const totalPages = Math.max(
         1,
-        Math.ceil(totalTasks / PAGE_SIZE)
+        Math.ceil(totalCount / PAGE_SIZE)
     );
 
-    const paginatedTasks = useMemo(() => {
-        const startIndex =
-            (page - 1) * PAGE_SIZE;
-
-        return filteredTasks.slice(
-            startIndex,
-            startIndex + PAGE_SIZE
-        );
-    }, [filteredTasks, page]);
-
     const startItem =
-        totalTasks === 0
+        filteredTasks.length === 0
             ? 0
             : (page - 1) * PAGE_SIZE + 1;
 
-    const endItem = Math.min(
-        page * PAGE_SIZE,
-        totalTasks
-    );
+    const endItem =
+        filteredTasks.length === 0
+            ? 0
+            : startItem + filteredTasks.length - 1;
 
-    useEffect(() => {
-        if (page > totalPages) {
-            setPage(totalPages);
-        }
-    }, [page, totalPages]);
-
-    const handleSearchSubmit = (
-        event
-    ) => {
+    const handleSearchSubmit = (event) => {
         event.preventDefault();
-        fetchTasks(search);
+        fetchTasks(1, search);
     };
 
     const handleClearFilters = () => {
         setSearch("");
         setStatus("");
         setPriority("");
-        setPage(1);
-        fetchTasks("");
+        fetchTasks(1, "");
     };
 
     const formatDate = (dateValue) => {
@@ -211,14 +205,11 @@ const TaskList = () => {
             return dateValue;
         }
 
-        return date.toLocaleDateString(
-            "en-IN",
-            {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-            }
-        );
+        return date.toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+        });
     };
 
     const formatDateTime = (dateValue) => {
@@ -232,27 +223,18 @@ const TaskList = () => {
             return dateValue;
         }
 
-        return date.toLocaleString(
-            "en-IN",
-            {
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: true,
-            }
-        );
+        return date.toLocaleString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+        });
     };
 
-    const getPriorityClass = (
-        priorityValue
-    ) => {
-        switch (
-            String(
-                priorityValue || ""
-            ).toLowerCase()
-        ) {
+    const getPriorityClass = (value) => {
+        switch (normalizeFilterValue(value)) {
             case "high":
                 return "bg-red-100 text-red-700";
 
@@ -267,38 +249,32 @@ const TaskList = () => {
         }
     };
 
-   const getStatusClass = (statusValue) => {
-    switch (
-        String(statusValue || "").toLowerCase()
-    ) {
-        case "pending":
-            return "bg-yellow-100 text-yellow-700";
+    const getStatusClass = (value) => {
+        switch (normalizeFilterValue(value)) {
+            case "pending":
+                return "bg-yellow-100 text-yellow-700";
 
-        case "in progress":
-        case "in-progress":
-        case "in_progress":
-            return "bg-blue-100 text-blue-700";
+            case "inprogress":
+                return "bg-blue-100 text-blue-700";
 
-        case "completed":
-            return "bg-green-100 text-green-700";
+            case "completed":
+                return "bg-green-100 text-green-700";
 
-        case "cancelled":
-        case "canceled":
-            return "bg-red-100 text-red-700";
+            case "cancelled":
+            case "canceled":
+                return "bg-red-100 text-red-700";
 
-        default:
-            return "bg-gray-100 text-gray-700";
-    }
-};
+            default:
+                return "bg-gray-100 text-gray-700";
+        }
+    };
 
     const columns = [
         {
             key: "serial_number",
             label: "Sr. No.",
             render: (_task, rowIndex) =>
-                (page - 1) * PAGE_SIZE +
-                rowIndex +
-                1,
+                (page - 1) * PAGE_SIZE + rowIndex + 1,
         },
         {
             key: "title",
@@ -306,8 +282,7 @@ const TaskList = () => {
             render: (task) => (
                 <div>
                     <p className="font-semibold text-gray-800">
-                        {task.title ||
-                            "Untitled Task"}
+                        {task.title || "Untitled Task"}
                     </p>
 
                     <p className="mt-1 text-xs text-gray-500">
@@ -327,8 +302,7 @@ const TaskList = () => {
                     </p>
 
                     <p className="mt-1 text-xs text-gray-500">
-                        {task.assigned_to_emp_id ||
-                            "-"}
+                        {task.assigned_to_emp_id || "-"}
                     </p>
                 </div>
             ),
@@ -408,16 +382,13 @@ const TaskList = () => {
                     </h1>
 
                     <p className="mt-1 text-sm text-gray-500">
-                        View all tasks assigned
-                        to employees.
+                        View all tasks assigned to employees.
                     </p>
                 </div>
 
                 <button
                     type="button"
-                    onClick={() =>
-                        fetchTasks(search)
-                    }
+                    onClick={() => fetchTasks(page, search)}
                     disabled={loading}
                     className="rounded-lg bg-ettm-blue px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
@@ -436,9 +407,7 @@ const TaskList = () => {
 
             {/* Search and filters */}
             <form
-                onSubmit={
-                    handleSearchSubmit
-                }
+                onSubmit={handleSearchSubmit}
                 className="mb-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
             >
                 <div className="mb-4 flex items-center justify-between">
@@ -448,20 +417,15 @@ const TaskList = () => {
                         </h2>
 
                         <p className="mt-1 text-xs text-gray-500">
-                            Search tasks by task
-                            title, employee name,
-                            or employee ID.
+                            Search by task, employee name, or
+                            employee ID.
                         </p>
                     </div>
 
-                    {(search ||
-                        status ||
-                        priority) && (
+                    {(search || status || priority) && (
                         <button
                             type="button"
-                            onClick={
-                                handleClearFilters
-                            }
+                            onClick={handleClearFilters}
                             className="text-sm font-medium text-ettm-blue hover:underline"
                         >
                             Clear Filters
@@ -480,16 +444,14 @@ const TaskList = () => {
                             type="text"
                             value={search}
                             onChange={(event) =>
-                                setSearch(
-                                    event.target.value
-                                )
+                                setSearch(event.target.value)
                             }
                             placeholder="Task, employee name or ID..."
-                            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
+                            className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
                         />
                     </div>
 
-                    {/* Status */}
+                    {/* Status frontend filter */}
                     <div>
                         <label className="mb-2 block text-sm font-medium text-gray-700">
                             Status
@@ -497,12 +459,9 @@ const TaskList = () => {
 
                         <select
                             value={status}
-                            onChange={(event) => {
-                                setStatus(
-                                    event.target.value
-                                );
-                                setPage(1);
-                            }}
+                            onChange={(event) =>
+                                setStatus(event.target.value)
+                            }
                             className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-ettm-blue"
                         >
                             <option value="">
@@ -513,7 +472,7 @@ const TaskList = () => {
                                 Pending
                             </option>
 
-                            <option value="In Progress">
+                            <option value="In-Progress">
                                 In Progress
                             </option>
 
@@ -527,7 +486,7 @@ const TaskList = () => {
                         </select>
                     </div>
 
-                    {/* Priority */}
+                    {/* Priority frontend filter */}
                     <div>
                         <label className="mb-2 block text-sm font-medium text-gray-700">
                             Priority
@@ -535,12 +494,9 @@ const TaskList = () => {
 
                         <select
                             value={priority}
-                            onChange={(event) => {
-                                setPriority(
-                                    event.target.value
-                                );
-                                setPage(1);
-                            }}
+                            onChange={(event) =>
+                                setPriority(event.target.value)
+                            }
                             className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-ettm-blue"
                         >
                             <option value="">
@@ -561,12 +517,11 @@ const TaskList = () => {
                         </select>
                     </div>
 
-                    {/* Search button */}
                     <div className="flex items-end">
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full rounded-lg bg-ettm-blue px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="w-full rounded-lg bg-ettm-blue px-5 py-2.5 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             {loading
                                 ? "Searching..."
@@ -576,7 +531,7 @@ const TaskList = () => {
                 </div>
             </form>
 
-            {/* Task table section */}
+            {/* Task table */}
             <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
                 <div className="border-b border-gray-200 px-5 py-4">
                     <h2 className="text-lg font-semibold text-gray-800">
@@ -584,9 +539,15 @@ const TaskList = () => {
                     </h2>
 
                     <p className="mt-1 text-xs text-gray-500">
-                        {totalTasks > 0
-                            ? `Showing ${startItem}-${endItem} of ${totalTasks} tasks`
-                            : "No tasks found"}
+                        {status || priority
+                            ? `${filteredTasks.length} filtered task${
+                                  filteredTasks.length !== 1
+                                      ? "s"
+                                      : ""
+                              } found on this page`
+                            : totalCount > 0
+                              ? `Showing ${startItem}-${endItem} of ${totalCount} tasks`
+                              : "No tasks found"}
                     </p>
                 </div>
 
@@ -601,105 +562,87 @@ const TaskList = () => {
                 ) : (
                     <Table
                         columns={columns}
-                        data={paginatedTasks}
+                        data={filteredTasks}
                         keyField="id"
-                        emptyMessage="No tasks found. Try changing your search or filters."
-                        onRowClick={
-                            setSelectedTask
-                        }
+                        emptyMessage="No tasks found. Try changing your filters."
+                        onRowClick={setSelectedTask}
                         className="rounded-none border-0"
                     />
                 )}
 
                 {/* Pagination */}
-                {!loading &&
-                    totalTasks > 0 && (
-                        <div className="flex flex-col gap-3 border-t border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                                <p className="text-sm text-gray-500">
-                                    Showing{" "}
-                                    <span className="font-medium text-gray-700">
-                                        {startItem}
-                                    </span>
-                                    {" - "}
-                                    <span className="font-medium text-gray-700">
-                                        {endItem}
-                                    </span>
-                                    {" of "}
-                                    <span className="font-medium text-gray-700">
-                                        {totalTasks}
-                                    </span>
-                                </p>
-
-                                <p className="mt-1 text-xs text-gray-400">
-                                    Page {page} of{" "}
-                                    {totalPages}
-                                </p>
-                            </div>
-
-                            <div className="flex gap-2">
-                                <button
-                                    type="button"
-                                    disabled={
-                                        page <= 1
-                                    }
-                                    onClick={() =>
-                                        setPage(
-                                            (
-                                                currentPage
-                                            ) =>
-                                                Math.max(
-                                                    1,
-                                                    currentPage -
-                                                        1
-                                                )
-                                        )
-                                    }
-                                    className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-                                >
-                                    Previous
-                                </button>
-
-                                <div className="flex min-w-10 items-center justify-center rounded-lg bg-ettm-blue px-4 py-2 text-sm font-semibold text-white">
+                {!loading && totalCount > 0 && (
+                    <div className="flex flex-col gap-3 border-t border-gray-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <p className="text-sm text-gray-500">
+                                Page{" "}
+                                <span className="font-medium text-gray-700">
                                     {page}
-                                </div>
+                                </span>{" "}
+                                of{" "}
+                                <span className="font-medium text-gray-700">
+                                    {totalPages}
+                                </span>
+                            </p>
 
-                                <button
-                                    type="button"
-                                    disabled={
-                                        page >=
-                                        totalPages
-                                    }
-                                    onClick={() =>
-                                        setPage(
-                                            (
-                                                currentPage
-                                            ) =>
-                                                currentPage +
-                                                1
-                                        )
-                                    }
-                                    className="rounded-lg bg-ettm-blue px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-                                >
-                                    Next
-                                </button>
-                            </div>
+                            {(status || priority) && (
+                                <p className="mt-1 text-xs text-gray-400">
+                                    Filters are applied to the
+                                    current page.
+                                </p>
+                            )}
                         </div>
-                    )}
+
+                        <div className="flex gap-2">
+                            <button
+                                type="button"
+                                disabled={
+                                    !previousPage ||
+                                    loading ||
+                                    page <= 1
+                                }
+                                onClick={() =>
+                                    fetchTasks(
+                                        Math.max(1, page - 1),
+                                        search
+                                    )
+                                }
+                                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                                Previous
+                            </button>
+
+                            <div className="flex min-w-10 items-center justify-center rounded-lg bg-ettm-blue px-4 py-2 text-sm font-semibold text-white">
+                                {page}
+                            </div>
+
+                            <button
+                                type="button"
+                                disabled={!nextPage || loading}
+                                onClick={() =>
+                                    fetchTasks(
+                                        page + 1,
+                                        search
+                                    )
+                                }
+                                className="rounded-lg bg-ettm-blue px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Task details modal */}
             <Modal
                 isOpen={Boolean(selectedTask)}
-                onClose={() =>
-                    setSelectedTask(null)
-                }
+                onClose={() => setSelectedTask(null)}
                 title="Task Details"
                 size="large"
             >
                 {selectedTask && (
                     <div className="space-y-6">
-                        {/* Title and status */}
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div>
                                 <h3 className="text-xl font-semibold text-gray-900">
@@ -709,8 +652,7 @@ const TaskList = () => {
 
                                 <p className="mt-1 text-sm text-gray-500">
                                     Task ID:{" "}
-                                    {selectedTask.id ??
-                                        "-"}
+                                    {selectedTask.id ?? "-"}
                                 </p>
                             </div>
 
@@ -719,24 +661,20 @@ const TaskList = () => {
                                     selectedTask.status
                                 )}`}
                             >
-                                {selectedTask.status ||
-                                    "-"}
+                                {selectedTask.status || "-"}
                             </span>
                         </div>
 
-                        {/* Description */}
                         <div>
                             <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
                                 Description
                             </p>
 
                             <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700">
-                                {selectedTask.description ||
-                                    "-"}
+                                {selectedTask.description || "-"}
                             </p>
                         </div>
 
-                        {/* Main details */}
                         <div className="grid grid-cols-1 gap-4 rounded-xl bg-gray-50 p-4 sm:grid-cols-2">
                             <DetailItem
                                 label="Assigned Employee"
@@ -755,14 +693,6 @@ const TaskList = () => {
                             />
 
                             <DetailItem
-                                label="Assigned User ID"
-                                value={
-                                    selectedTask.assigned_to ??
-                                    "-"
-                                }
-                            />
-
-                            <DetailItem
                                 label="Created By"
                                 value={
                                     selectedTask.created_by_name ||
@@ -771,24 +701,9 @@ const TaskList = () => {
                             />
 
                             <DetailItem
-                                label="Created By ID"
-                                value={
-                                    selectedTask.created_by ??
-                                    "-"
-                                }
-                            />
-
-                            <DetailItem
                                 label="Priority"
                                 value={
-                                    <span
-                                        className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getPriorityClass(
-                                            selectedTask.priority
-                                        )}`}
-                                    >
-                                        {selectedTask.priority ||
-                                            "-"}
-                                    </span>
+                                    selectedTask.priority || "-"
                                 }
                             />
 
@@ -822,170 +737,128 @@ const TaskList = () => {
                         </div>
 
                         {/* Daily updates */}
-                        {/* Daily updates */}
-<div>
-    <div className="mb-3 flex items-center justify-between">
-        <h4 className="text-base font-semibold text-gray-800">
-            Daily Updates
-        </h4>
+                        <div>
+                            <div className="mb-3 flex items-center justify-between">
+                                <h4 className="text-base font-semibold text-gray-800">
+                                    Daily Updates
+                                </h4>
 
-        <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
-            {dailyUpdates.length} update
-            {dailyUpdates.length !== 1 ? "s" : ""}
-        </span>
-    </div>
-
-    {dailyUpdates.length > 0 ? (
-        <div className="space-y-3">
-            {dailyUpdates.map((update, index) => {
-                const progressPercent = Math.min(
-                    100,
-                    Math.max(
-                        0,
-                        Number(
-                            update.progress_percent || 0
-                        )
-                    )
-                );
-
-                return (
-                    <div
-                        key={update.id || index}
-                        className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
-                    >
-                        {/* Update heading */}
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                            <div>
-                                <p className="text-sm font-semibold text-gray-800">
-                                    {update.task_title ||
-                                        `Update ${index + 1}`}
-                                </p>
-
-                                <p className="mt-1 text-xs text-gray-500">
-                                    Updated by:{" "}
-                                    <span className="font-semibold text-gray-700">
-                                        {update.employee_name ||
-                                            "-"}
-                                    </span>
-                                </p>
+                                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
+                                    {dailyUpdates.length} update
+                                    {dailyUpdates.length !== 1
+                                        ? "s"
+                                        : ""}
+                                </span>
                             </div>
 
-                            <span
-                                className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
-                                    update.task_status
-                                )}`}
-                            >
-                                {update.task_status || "-"}
-                            </span>
-                        </div>
+                            {dailyUpdates.length > 0 ? (
+                                <div className="space-y-3">
+                                    {dailyUpdates.map(
+                                        (update, index) => {
+                                            const progress =
+                                                Math.min(
+                                                    100,
+                                                    Math.max(
+                                                        0,
+                                                        Number(
+                                                            update.progress_percent ||
+                                                                0
+                                                        )
+                                                    )
+                                                );
 
-                        {/* Update text */}
-                        <div className="mt-4">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                                Progress Update
-                            </p>
+                                            return (
+                                                <div
+                                                    key={
+                                                        update.id ||
+                                                        index
+                                                    }
+                                                    className="rounded-lg border border-gray-200 bg-white p-4"
+                                                >
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div>
+                                                            <p className="text-sm font-semibold text-gray-800">
+                                                                {update.task_title ||
+                                                                    `Update ${
+                                                                        index +
+                                                                        1
+                                                                    }`}
+                                                            </p>
 
-                            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-gray-700">
-                                {update.update_text ||
-                                    "No update text provided."}
-                            </p>
-                        </div>
+                                                            <p className="mt-1 text-xs text-gray-500">
+                                                                Updated
+                                                                by:{" "}
+                                                                {update.employee_name ||
+                                                                    "-"}
+                                                            </p>
+                                                        </div>
 
-                        {/* Progress */}
-                        <div className="mt-4">
-                            <div className="mb-2 flex items-center justify-between">
-                                <p className="text-xs font-semibold text-gray-500">
-                                    Task Progress
-                                </p>
+                                                        <span
+                                                            className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
+                                                                update.task_status
+                                                            )}`}
+                                                        >
+                                                            {update.task_status ||
+                                                                "-"}
+                                                        </span>
+                                                    </div>
 
-                                <p className="text-xs font-bold text-ettm-blue">
-                                    {progressPercent}%
-                                </p>
-                            </div>
+                                                    <p className="mt-4 whitespace-pre-wrap text-sm text-gray-700">
+                                                        {update.update_text ||
+                                                            "No update text provided."}
+                                                    </p>
 
-                            <div className="h-2.5 w-full overflow-hidden rounded-full bg-gray-200">
-                                <div
-                                    className={`h-full rounded-full transition-all ${
-                                        progressPercent >= 100
-                                            ? "bg-green-600"
-                                            : progressPercent >= 50
-                                              ? "bg-ettm-blue"
-                                              : "bg-yellow-500"
-                                    }`}
-                                    style={{
-                                        width: `${progressPercent}%`,
-                                    }}
-                                />
-                            </div>
-                        </div>
+                                                    <div className="mt-4">
+                                                        <div className="mb-2 flex justify-between text-xs">
+                                                            <span className="font-medium text-gray-500">
+                                                                Progress
+                                                            </span>
 
-                        {/* Update information */}
-                        <div className="mt-4 grid grid-cols-1 gap-3 border-t border-gray-100 pt-4 sm:grid-cols-2">
-                            <div>
-                                <p className="text-xs text-gray-400">
-                                    Task ID
-                                </p>
+                                                            <span className="font-semibold text-ettm-blue">
+                                                                {
+                                                                    progress
+                                                                }
+                                                                %
+                                                            </span>
+                                                        </div>
 
-                                <p className="mt-1 text-sm font-medium text-gray-700">
-                                    {update.task || "-"}
-                                </p>
-                            </div>
+                                                        <div className="h-2 overflow-hidden rounded-full bg-gray-200">
+                                                            <div
+                                                                className="h-full rounded-full bg-ettm-blue"
+                                                                style={{
+                                                                    width: `${progress}%`,
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </div>
 
-                            <div>
-                                <p className="text-xs text-gray-400">
-                                    Employee User ID
-                                </p>
-
-                                <p className="mt-1 text-sm font-medium text-gray-700">
-                                    {update.employee || "-"}
-                                </p>
-                            </div>
-
-                            <div>
-                                <p className="text-xs text-gray-400">
-                                    Created At
-                                </p>
-
-                                <p className="mt-1 text-sm font-medium text-gray-700">
-                                    {formatDateTime(
-                                        update.created_at
+                                                    <p className="mt-4 border-t border-gray-100 pt-3 text-xs text-gray-400">
+                                                        Updated:{" "}
+                                                        {formatDateTime(
+                                                            update.created_at ||
+                                                                update.updated_at
+                                                        )}
+                                                    </p>
+                                                </div>
+                                            );
+                                        }
                                     )}
-                                </p>
-                            </div>
-
-                            <div>
-                                <p className="text-xs text-gray-400">
-                                    Updated At
-                                </p>
-
-                                <p className="mt-1 text-sm font-medium text-gray-700">
-                                    {formatDateTime(
-                                        update.updated_at
-                                    )}
-                                </p>
-                            </div>
+                                </div>
+                            ) : (
+                                <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-5 text-center text-sm text-gray-500">
+                                    No daily updates have been
+                                    added.
+                                </div>
+                            )}
                         </div>
-                    </div>
-                );
-            })}
-        </div>
-    ) : (
-        <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-5 text-center text-sm text-gray-500">
-            No daily updates have been added for this task.
-        </div>
-    )}
-</div>
 
-                        {/* Close button */}
                         <div className="flex justify-end border-t border-gray-200 pt-4">
                             <button
                                 type="button"
                                 onClick={() =>
-                                    setSelectedTask(
-                                        null
-                                    )
+                                    setSelectedTask(null)
                                 }
-                                className="rounded-lg bg-ettm-blue px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
+                                className="rounded-lg bg-ettm-blue px-5 py-2.5 text-sm font-medium text-white hover:opacity-90"
                             >
                                 Close
                             </button>
@@ -1004,9 +877,9 @@ const DetailItem = ({ label, value }) => {
                 {label}
             </p>
 
-            <div className="mt-1 text-sm font-medium text-gray-800">
+            <p className="mt-1 text-sm font-medium text-gray-800">
                 {value}
-            </div>
+            </p>
         </div>
     );
 };

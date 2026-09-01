@@ -73,7 +73,7 @@ function App() {
 
           {/* See Employees */}
           <Route
-            path="employees/list"
+            path="employeess/list"
             element={<Employees />}
           />
 
