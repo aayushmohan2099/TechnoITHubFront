@@ -134,8 +134,61 @@ export const punchAttendance = async () => {
     const response = await axiosInstance.post(
         "api/v1/attendance/employee/punch/"
     );
-
     return response.data;
+};
+
+export const getAttendanceByDate = async (date) => {
+    const requestDate = date || new Date().toISOString().slice(0, 10);
+    const endpointVariants = [
+        { url: "api/v1/attendance/employee/history/", params: { date: requestDate } },
+       
+    ];
+
+    let lastError = null;
+
+    for (const endpoint of endpointVariants) {
+        try {
+            const response = await axiosInstance.get(endpoint.url, {
+                params: endpoint.params,
+            });
+
+            const data = response.data;
+
+            if (Array.isArray(data)) {
+                const match = data.find((item) => {
+                    const attendanceDate = item?.attendance_date || item?.date || item?.punch_in?.slice(0, 10);
+                    return attendanceDate === requestDate;
+                }) || data[0] || null;
+
+                return match;
+            }
+
+            if (data && Array.isArray(data.results)) {
+                const match = data.results.find((item) => {
+                    const attendanceDate = item?.attendance_date || item?.date || item?.punch_in?.slice(0, 10);
+                    return attendanceDate === requestDate;
+                }) || data.results[0] || null;
+
+                return match;
+            }
+
+            return data;
+        } catch (error) {
+            const status = error?.response?.status;
+            if (status === 404 || status === 400) {
+                lastError = error;
+                continue;
+            }
+
+            throw error;
+        }
+    }
+
+    if (lastError) {
+        throw lastError;
+    }
+
+    return null;
 };
 
 // Employee Tasks
