@@ -6,7 +6,7 @@ import Card from "../components/common/Card";
 import Input from "../components/common/Input";
 import Button from "../components/common/Button";
 
-import logo from "../assets/thlogo.png";
+import logo from "../assets/logo.png";
 import AppBackground from "./AppBackground";
 
 
