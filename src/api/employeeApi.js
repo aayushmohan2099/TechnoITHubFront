@@ -75,17 +75,18 @@ export const resetEmployeePassword = async (employeeId) => {
     return response.data;
 };
 
-    // Get All Tasks
-   export const getAllTasks = async ({
+   // ===============================
+// GET ALL TASKS
+// ===============================
+export const getAllTasks = async ({
     page = 1,
     search = "",
     status = "",
     priority = "",
-    
+    ordering = "",
 } = {}) => {
     const params = {
         page,
-        
     };
 
     if (search.trim()) {
@@ -100,11 +101,45 @@ export const resetEmployeePassword = async (employeeId) => {
         params.priority = priority;
     }
 
+    if (ordering) {
+        params.ordering = ordering;
+    }
+
     const response = await axiosInstance.get(
         "api/v1/tasks/admin/manage/",
         {
             params,
         }
+    );
+
+    return response.data;
+};
+
+
+// ===============================
+// UPDATE TASK
+// PATCH
+// ===============================
+export const updateTask = async (
+    taskId,
+    taskData
+) => {
+    const response = await axiosInstance.patch(
+        `api/v1/tasks/admin/manage/${taskId}/`,
+        taskData
+    );
+
+    return response.data;
+};
+
+
+// ===============================
+// DELETE TASK
+// DELETE
+// ===============================
+export const deleteTask = async (taskId) => {
+    const response = await axiosInstance.delete(
+        `api/v1/tasks/admin/manage/${taskId}/`
     );
 
     return response.data;
