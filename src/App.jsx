@@ -16,7 +16,6 @@ import ResetPassword from "./pages/Admin/ResetPassword";
 import TaskList from "./pages/Admin/TaskList";
 import Attendance from "./pages/Admin/Attendance";
 
-
 // ===============================
 // EMPLOYEE
 // ===============================
@@ -30,124 +29,62 @@ function App() {
   return (
     <AppBackground>
       <Routes>
-
         {/* =========================
                     LOGIN
                 ========================= */}
-        <Route
-          path="/login"
-          element={<Login />}
-        />
-
+        <Route path="/login" element={<Login />} />
 
         {/* =========================
                     ADMIN
                 ========================= */}
-        <Route
-          path="/admin"
-          element={<AdminLayout />}
-        >
-
+        <Route path="/admin" element={<AdminLayout />}>
           {/* /admin → /admin/dashboard */}
-          <Route
-            index
-            element={
-              <Navigate
-                to="/admin/dashboard"
-                replace
-              />
-            }
-          />
+          <Route index element={<Navigate to="/admin/dashboard" replace />} />
 
           {/* Dashboard */}
-          <Route
-            path="dashboard"
-            element={<AdminDashboard />}
-          />
+          <Route path="dashboard" element={<AdminDashboard />} />
 
           {/* Add Employee */}
-          <Route
-            path="employees"
-            element={<AddEmployee />}
-          />
+          <Route path="employees" element={<AddEmployee />} />
 
           {/* See Employees */}
-          <Route
-            path="employeess/list"
-            element={<Employees />}
-          />
+          <Route path="employeess/list" element={<Employees />} />
 
           {/* Assign Task */}
-          <Route
-            path="tasks"
-            element={<Tasks />}
-          />
+          <Route path="tasks" element={<Tasks />} />
 
           {/* See Tasks */}
-          <Route
-            path="tasklist"
-            element={<TaskList />}
-          />
+          <Route path="tasklist" element={<TaskList />} />
 
           {/* Attendance */}
-          <Route
-            path="attendance"
-            element={<Attendance />}
-          />
+          <Route path="attendance" element={<Attendance />} />
 
           {/* Reset Password */}
-          <Route
-            path="reset-password"
-            element={<ResetPassword />}
-          />
-
+          <Route path="reset-password" element={<ResetPassword />} />
         </Route>
-
 
         {/* =========================
                     EMPLOYEE
                 ========================= */}
-        <Route
-          path="/employee"
-          element={<EmployeeLayout />}
-        >
-
+        <Route path="/employee" element={<EmployeeLayout />}>
           {/* /employee → /employee/dashboard */}
           <Route
             index
-            element={
-              <Navigate
-                to="/employee/dashboard"
-                replace
-              />
-            }
+            element={<Navigate to="/employee/dashboard" replace />}
           />
 
           {/* Employee Dashboard */}
-          <Route
-            path="dashboard"
-            element={<EmployeeDashboard />}
-          />
+          <Route path="dashboard" element={<EmployeeDashboard />} />
 
           {/* Employee Attendance - add later */}
 
-          <Route
-            path="attendance"
-            element={<EmployeeAttendance />}
-          />
+          <Route path="attendance" element={<EmployeeAttendance />} />
 
-          <Route
-            path="change-password"
-            element={<ChangePassword />}
-          />
+          <Route path="change-password" element={<ChangePassword />} />
 
           {/* My Tasks - add later */}
 
-          <Route
-            path="tasks"
-            element={<MyTasks />}
-          />
-
+          <Route path="tasks" element={<MyTasks />} />
 
           {/* Daily Progress - add later */}
           {/* 
@@ -156,23 +93,12 @@ function App() {
                         element={<DailyProgress />}
                     />
                     */}
-
         </Route>
-
 
         {/* =========================
                     UNKNOWN ROUTE
                 ========================= */}
-        <Route
-          path="*"
-          element={
-            <Navigate
-              to="/login"
-              replace
-            />
-          }
-        />
-
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </AppBackground>
   );
