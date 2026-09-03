@@ -2,7 +2,11 @@ import React, { useEffect, useState } from "react";
 
 import Table from "../../components/common/Table";
 
-import { getAllEmployees } from "../../api/employeeApi";
+import {
+    getAllEmployees,
+    updateEmployee,
+    deleteEmployee,
+} from "../../api/employeeApi";
 
 const Employees = () => {
     const [employees, setEmployees] = useState([]);
@@ -19,6 +23,25 @@ const Employees = () => {
     const [search, setSearch] = useState("");
 
     // --------------------------------------------------
+    // Edit Employee
+    // --------------------------------------------------
+    const [selectedEmployee, setSelectedEmployee] =
+        useState(null);
+
+    const [editForm, setEditForm] = useState({
+        name: "",
+        email: "",
+        phone_number: "",
+        designation: "",
+    });
+
+    const [updating, setUpdating] =
+        useState(false);
+
+    const [updateError, setUpdateError] =
+        useState("");
+
+    // --------------------------------------------------
     // Fetch Employees
     // --------------------------------------------------
     const fetchEmployees = async () => {
@@ -31,7 +54,10 @@ const Employees = () => {
                 search: search.trim(),
             });
 
-            console.log("Get All Employees Response:", response);
+            console.log(
+                "Get All Employees Response:",
+                response
+            );
 
             // Paginated response
             if (Array.isArray(response?.results)) {
@@ -39,7 +65,9 @@ const Employees = () => {
 
                 setTotalCount(response.count || 0);
                 setNextPage(response.next || null);
-                setPreviousPage(response.previous || null);
+                setPreviousPage(
+                    response.previous || null
+                );
 
                 return;
             }
@@ -49,11 +77,14 @@ const Employees = () => {
                 setEmployees(response.data);
 
                 setTotalCount(
-                    response.count || response.data.length
+                    response.count ||
+                        response.data.length
                 );
 
                 setNextPage(response.next || null);
-                setPreviousPage(response.previous || null);
+                setPreviousPage(
+                    response.previous || null
+                );
 
                 return;
             }
@@ -72,9 +103,11 @@ const Employees = () => {
             setTotalCount(0);
             setNextPage(null);
             setPreviousPage(null);
-
         } catch (error) {
-            console.error("Get Employees Failed:", error);
+            console.error(
+                "Get Employees Failed:",
+                error
+            );
             console.error(
                 "Status:",
                 error.response?.status
@@ -84,16 +117,21 @@ const Employees = () => {
                 error.response?.data
             );
 
-            if (error.response?.status === 401) {
+            if (
+                error.response?.status === 401
+            ) {
                 setError(
                     "Your session has expired or the access token is invalid."
                 );
             } else {
                 setError(
-                    error.response?.data?.message ||
-                    error.response?.data?.detail ||
-                    error.response?.data?.error ||
-                    "Unable to load employees."
+                    error.response?.data
+                        ?.message ||
+                        error.response?.data
+                            ?.detail ||
+                        error.response?.data
+                            ?.error ||
+                        "Unable to load employees."
                 );
             }
         } finally {
@@ -127,6 +165,139 @@ const Employees = () => {
     };
 
     // --------------------------------------------------
+    // Edit Employee
+    // --------------------------------------------------
+    const handleEdit = (employee) => {
+        setSelectedEmployee(employee);
+
+        setEditForm({
+            name: employee.name || "",
+            email: employee.email || "",
+            phone_number:
+                employee.phone_number || "",
+            designation:
+                employee.designation || "",
+        });
+
+        setUpdateError("");
+    };
+
+    // --------------------------------------------------
+    // Edit Form Change
+    // --------------------------------------------------
+    const handleEditChange = (event) => {
+        const { name, value } =
+            event.target;
+
+        setEditForm((previous) => ({
+            ...previous,
+            [name]: value,
+        }));
+
+        setUpdateError("");
+    };
+
+    // --------------------------------------------------
+    // Update Employee
+    // --------------------------------------------------
+    const handleUpdateEmployee =
+        async () => {
+            if (!selectedEmployee) {
+                return;
+            }
+
+            try {
+                setUpdating(true);
+                setUpdateError("");
+
+                const response =
+                    await updateEmployee(
+                        selectedEmployee.user_id,
+                        editForm
+                    );
+
+                console.log(
+                    "Update Employee Response:",
+                    response
+                );
+
+                setSelectedEmployee(null);
+
+                await fetchEmployees();
+            } catch (error) {
+                console.error(
+                    "Update Employee Failed:",
+                    error
+                );
+
+                console.error(
+                    "Response:",
+                    error.response?.data
+                );
+
+                setUpdateError(
+                    error.response?.data
+                        ?.message ||
+                        error.response?.data
+                            ?.detail ||
+                        error.response?.data
+                            ?.error ||
+                        "Unable to update employee."
+                );
+            } finally {
+                setUpdating(false);
+            }
+        };
+
+    // --------------------------------------------------
+    // Delete Employee
+    // --------------------------------------------------
+    const handleDeleteEmployee =
+        async (employee) => {
+            const confirmDelete =
+                window.confirm(
+                    `Are you sure you want to delete ${employee.name}?`
+                );
+
+            if (!confirmDelete) {
+                return;
+            }
+
+            try {
+               await deleteEmployee(
+    employee.user_id
+);
+
+                console.log(
+                    "Employee deleted:",
+                    employee.employee_id
+                );
+
+                await fetchEmployees();
+            } catch (error) {
+                console.error(
+                    "Delete Employee Failed:",
+                    error
+                );
+
+                console.error(
+                    "Response:",
+                    error.response?.data
+                );
+
+                setError(
+                    error.response?.data
+                        ?.message ||
+                        error.response?.data
+                            ?.detail ||
+                        error.response?.data
+                            ?.error ||
+                        "Unable to delete employee."
+                );
+            }
+        };
+
+    // --------------------------------------------------
     // Table Columns
     // --------------------------------------------------
     const pageSize = 10;
@@ -135,7 +306,10 @@ const Employees = () => {
         {
             key: "srNo",
             label: "Sr. No.",
-            render: (_, index) => (page - 1) * pageSize + index + 1,
+            render: (_, index) =>
+                (page - 1) * pageSize +
+                index +
+                1,
         },
         {
             key: "employee_id",
@@ -152,12 +326,14 @@ const Employees = () => {
         {
             key: "phone_number",
             label: "Phone Number",
-            render: (row) => row.phone_number || "-",
+            render: (row) =>
+                row.phone_number || "-",
         },
         {
             key: "designation",
             label: "Designation",
-            render: (row) => row.designation || "-",
+            render: (row) =>
+                row.designation || "-",
         },
         {
             key: "created_at",
@@ -171,6 +347,35 @@ const Employees = () => {
                     row.created_at
                 ).toLocaleDateString("en-IN");
             },
+        },
+        {
+            key: "actions",
+            label: "Actions",
+            render: (row) => (
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() =>
+                            handleEdit(row)
+                        }
+                        className="rounded-lg bg-ettm-blue px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90"
+                    >
+                        Edit
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() =>
+                            handleDeleteEmployee(
+                                row
+                            )
+                        }
+                        className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700"
+                    >
+                        Delete
+                    </button>
+                </div>
+            ),
         },
     ];
 
@@ -200,7 +405,8 @@ const Employees = () => {
                 </h1>
 
                 <p className="mt-1 text-sm text-gray-500">
-                    View and search all employees registered in the system.
+                    View and search all employees
+                    registered in the system.
                 </p>
             </div>
 
@@ -230,14 +436,18 @@ const Employees = () => {
                         </h2>
 
                         <p className="mt-0.5 text-xs text-gray-500">
-                            Search by employee name, employee ID, or designation.
+                            Search by employee name,
+                            employee ID, or
+                            designation.
                         </p>
                     </div>
 
                     {search && (
                         <button
                             type="button"
-                            onClick={handleClearSearch}
+                            onClick={
+                                handleClearSearch
+                            }
                             className="text-xs font-semibold text-ettm-blue hover:underline"
                         >
                             Clear Search
@@ -249,7 +459,9 @@ const Employees = () => {
                     <input
                         type="text"
                         value={search}
-                        onChange={handleSearchChange}
+                        onChange={
+                            handleSearchChange
+                        }
                         placeholder="Search name, employee ID or designation..."
                         className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm text-gray-800 outline-none transition focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
                     />
@@ -257,7 +469,8 @@ const Employees = () => {
 
                 {search && (
                     <p className="mt-2 text-xs text-gray-400">
-                        Searching records for: "{search}"
+                        Searching records for: "
+                        {search}"
                     </p>
                 )}
             </div>
@@ -269,6 +482,7 @@ const Employees = () => {
                         <h3 className="text-base font-bold text-gray-900">
                             Employee Directory List
                         </h3>
+
                         <p className="text-xs text-gray-500">
                             {totalCount > 0
                                 ? `Showing ${startEmployee}-${endEmployee} of ${totalCount} employees`
@@ -304,20 +518,27 @@ const Employees = () => {
                                     <p className="text-sm text-gray-500">
                                         Showing{" "}
                                         <span className="font-semibold text-gray-800">
-                                            {startEmployee}
+                                            {
+                                                startEmployee
+                                            }
                                         </span>
                                         {" - "}
                                         <span className="font-semibold text-gray-800">
-                                            {endEmployee}
+                                            {
+                                                endEmployee
+                                            }
                                         </span>
                                         {" of "}
                                         <span className="font-semibold text-gray-800">
-                                            {totalCount}
+                                            {
+                                                totalCount
+                                            }
                                         </span>
                                     </p>
 
                                     <p className="mt-0.5 text-xs text-gray-400">
-                                        Page {page} of {totalPages}
+                                        Page {page} of{" "}
+                                        {totalPages}
                                     </p>
                                 </div>
 
@@ -331,11 +552,15 @@ const Employees = () => {
                                             page <= 1
                                         }
                                         onClick={() =>
-                                            setPage((current) =>
-                                                Math.max(
-                                                    1,
-                                                    current - 1
-                                                )
+                                            setPage(
+                                                (
+                                                    current
+                                                ) =>
+                                                    Math.max(
+                                                        1,
+                                                        current -
+                                                            1
+                                                    )
                                             )
                                         }
                                         className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 shadow-xs"
@@ -354,12 +579,16 @@ const Employees = () => {
                                         disabled={
                                             !nextPage ||
                                             loading ||
-                                            page >= totalPages
+                                            page >=
+                                                totalPages
                                         }
                                         onClick={() =>
                                             setPage(
-                                                (current) =>
-                                                    current + 1
+                                                (
+                                                    current
+                                                ) =>
+                                                    current +
+                                                    1
                                             )
                                         }
                                         className="rounded-xl bg-ettm-blue px-4 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 shadow-xs"
@@ -372,6 +601,135 @@ const Employees = () => {
                     </>
                 )}
             </div>
+
+            {/* Edit Employee Modal */}
+            {selectedEmployee && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+                    <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+                        <h2 className="text-xl font-bold text-gray-900">
+                            Edit Employee
+                        </h2>
+
+                        <p className="mt-1 text-sm text-gray-500">
+                            Employee ID:{" "}
+                            {
+                                selectedEmployee.employee_id
+                            }
+                        </p>
+
+                        {updateError && (
+                            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                                {updateError}
+                            </div>
+                        )}
+
+                        <div className="mt-5 space-y-4">
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">
+                                    Name
+                                </label>
+
+                                <input
+                                    type="text"
+                                    name="name"
+                                    value={
+                                        editForm.name
+                                    }
+                                    onChange={
+                                        handleEditChange
+                                    }
+                                    className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">
+                                    Email
+                                </label>
+
+                                <input
+                                    type="email"
+                                    name="email"
+                                    value={
+                                        editForm.email
+                                    }
+                                    onChange={
+                                        handleEditChange
+                                    }
+                                    className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">
+                                    Phone Number
+                                </label>
+
+                                <input
+                                    type="text"
+                                    name="phone_number"
+                                    value={
+                                        editForm.phone_number
+                                    }
+                                    onChange={
+                                        handleEditChange
+                                    }
+                                    className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">
+                                    Designation
+                                </label>
+
+                                <input
+                                    type="text"
+                                    name="designation"
+                                    value={
+                                        editForm.designation
+                                    }
+                                    onChange={
+                                        handleEditChange
+                                    }
+                                    className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex justify-end gap-3">
+                            <button
+                                type="button"
+                                disabled={updating}
+                                onClick={() => {
+                                    setSelectedEmployee(
+                                        null
+                                    );
+                                    setUpdateError(
+                                        ""
+                                    );
+                                }}
+                                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+
+                            <button
+                                type="button"
+                                disabled={updating}
+                                onClick={
+                                    handleUpdateEmployee
+                                }
+                                className="rounded-xl bg-ettm-blue px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {updating
+                                    ? "Updating..."
+                                    : "Update"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

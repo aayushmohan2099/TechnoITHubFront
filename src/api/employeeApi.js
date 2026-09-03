@@ -135,6 +135,39 @@ export const getAttendanceHistory = async ({
     return response.data;
 };
 
+// ===============================
+// UPDATE EMPLOYEE
+// PATCH
+// ===============================
+
+export const updateEmployee = async (
+    userId,
+    employeeData
+) => {
+    const response = await axiosInstance.patch(
+        `api/v1/employees/profiles/${userId}/`,
+        employeeData
+    );
+
+    return response.data;
+};
+
+
+// ===============================
+// DELETE EMPLOYEE
+// DELETE
+// ===============================
+
+export const deleteEmployee = async (
+   userId
+) => {
+    const response = await axiosInstance.delete(
+        `api/v1/employees/profiles/${userId}/`
+    );
+
+    return response.data;
+};
+
 //=====================================
 // EMPLOYEE APIs
 //=====================================

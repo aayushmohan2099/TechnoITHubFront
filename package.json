@@ -37,17 +37,37 @@
     "wait-on": "^9.1.0"
   },
   "build": {
-    "appId": "com.ettm.app",
+    "appId": "com.technoithub.ettm",
     "productName": "ETTM",
+    "artifactName": "${productName}-Setup-${version}.${ext}",
+    "asar": true,
     "directories": {
-      "output": "release"
+        "output": "installer-output2"
     },
     "files": [
-      "dist/**/*",
-      "electron/**/*"
+        "dist/**/*",
+        "electron/**/*",
+        "package.json"
     ],
     "win": {
-      "target": "nsis"
+        "target": [
+            {
+                "target": "nsis",
+                "arch": [
+                    "x64"
+                ]
+            }
+        ],
+        "icon": "electron/icon.ico"
+    },
+    "nsis": {
+        "oneClick": false,
+        "allowToChangeInstallationDirectory": true,
+        "createDesktopShortcut": true,
+        "createStartMenuShortcut": true,
+        "shortcutName": "ETTM",
+        "installerIcon": "electron/icon.ico",
+        "uninstallerIcon": "electron/icon.ico"
     }
-  }
+}
 }

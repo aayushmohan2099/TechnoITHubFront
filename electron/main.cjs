@@ -2,6 +2,7 @@ const {
     app,
     BrowserWindow,
     nativeImage,
+    Menu,
 } = require("electron");
 
 const path = require("path");
@@ -31,11 +32,23 @@ function createWindow() {
         // Window and Windows taskbar icon
         icon: appIcon,
 
+        // Hide File / Edit / View / Window menu bar
+        autoHideMenuBar: true,
+
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
         },
     });
+
+    // Remove application menu completely
+    Menu.setApplicationMenu(null);
+
+    // Hide menu bar
+    win.setMenuBarVisibility(false);
+
+    // Remove menu from this window
+    win.setMenu(null);
 
     if (!app.isPackaged) {
         win.loadURL("http://localhost:5173");
