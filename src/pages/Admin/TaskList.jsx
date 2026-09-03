@@ -750,7 +750,7 @@ const TaskList = () => {
                 >
                     {loading
                         ? "Refreshing..."
-                        : "Refresh"}
+                        : "Refresh"}-
                 </button>
             </div>
 

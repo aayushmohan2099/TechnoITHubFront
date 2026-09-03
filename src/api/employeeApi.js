@@ -202,6 +202,16 @@ export const deleteEmployee = async (
 
     return response.data;
 };
+//Employee Overdue Tasks
+export const getOverdueTasks = async () => {
+    const response = await axiosInstance.get(
+        "api/v1/tasks/admin/manage/overdue-tasks/"
+    );
+
+    return response.data;
+};
+
+///////////////////////////////////////////////////////////////////////////////////////
 
 //=====================================
 // EMPLOYEE APIs
