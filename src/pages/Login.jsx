@@ -192,6 +192,12 @@ const Login = () => {
         response?.role || response?.user?.role || formData.role || "",
       ).toLowerCase();
 
+      const designation =
+        response?.designation ||
+        response?.user?.designation ||
+        response?.data?.designation ||
+        "";
+
       if (!["admin", "employee"].includes(userRole)) {
         throw new Error("The server returned an invalid user role.");
       }
@@ -253,6 +259,8 @@ const Login = () => {
 
         role: userRole,
 
+        designation: designation,
+
         profile_picture: safeProfilePicture,
 
         must_change_password: Boolean(
@@ -268,6 +276,9 @@ const Login = () => {
       localStorage.setItem("employee_id", userDetails.employee_id);
 
       localStorage.setItem("role", userRole);
+      // localStorage.setItem("designation", userRole);
+
+      localStorage.setItem("designation", designation);
 
       localStorage.setItem(
         "must_change_password",

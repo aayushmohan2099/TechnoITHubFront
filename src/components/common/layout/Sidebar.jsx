@@ -8,9 +8,15 @@ import {
   FaClipboardList,
   FaKey,
   FaUserShield,
+  FaServer,
+  FaRobot,
 } from "react-icons/fa";
 
 const Sidebar = ({ role = "admin" }) => {
+  const userData = JSON.parse(localStorage.getItem("user_data") || "{}");
+
+  const designation = userData?.designation || "";
+
   const adminMenuItems = [
     {
       name: "Dashboard",
@@ -67,7 +73,30 @@ const Sidebar = ({ role = "admin" }) => {
     },
   ];
 
-  const menuItems = role === "admin" ? adminMenuItems : employeeMenuItems;
+  const headDeveloperMenuItems = [
+    {
+      name: "UP SDC Tracking",
+      path: "/employee/up-sdc-tracking",
+      icon: <FaServer />,
+    },
+    {
+      name: "Deployment Bot Health",
+      path: "/employee/deployment-bot-health",
+      icon: <FaRobot />,
+    },
+  ];
+
+  let menuItems = [];
+
+  if (role === "admin") {
+    menuItems = adminMenuItems;
+  } else {
+    menuItems = employeeMenuItems;
+
+    if (designation.trim().toLowerCase() === "head developer") {
+      menuItems = [...employeeMenuItems, ...headDeveloperMenuItems];
+    }
+  }
 
   return (
     <aside className="w-64 shrink-0 border-r border-gray-200 bg-white">
@@ -76,6 +105,7 @@ const Sidebar = ({ role = "admin" }) => {
         <h2 className="text-lg font-semibold text-ettm-blue">
           {role === "admin" ? "Admin Portal" : "Employee Portal"}
         </h2>
+
         <p className="mt-1 text-xs text-gray-500">
           {role === "admin" ? "Administration" : "Employee Dashboard"}
         </p>
@@ -98,6 +128,7 @@ const Sidebar = ({ role = "admin" }) => {
             <span className="flex w-5 justify-center text-base">
               {item.icon}
             </span>
+
             <span>{item.name}</span>
           </NavLink>
         ))}
