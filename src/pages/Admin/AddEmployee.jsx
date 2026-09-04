@@ -1,11 +1,10 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import Card from "../../components/common/Card";
-import Input from "../../components/common/Input";
 import Button from "../../components/common/Button";
 import Modal from "../../components/common/Modal";
 
-import { createEmployee } from "../../api/employeeApi";
+import { createEmployee, getDesignations } from "../../api/employeeApi";
 
 const AddEmployee = () => {
   const [formData, setFormData] = useState({
@@ -18,7 +17,10 @@ const AddEmployee = () => {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
-  // Employee credentials returned by API
+  const [designations, setDesignations] = useState([]);
+  const [loadingDesignations, setLoadingDesignations] = useState(false);
+  const [designationError, setDesignationError] = useState("");
+
   const [employeeCredentials, setEmployeeCredentials] = useState({
     employee_id: "",
     temporary_password: "",
@@ -26,6 +28,51 @@ const AddEmployee = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // =====================================================
+  // GET DESIGNATIONS
+  // =====================================================
+
+  useEffect(() => {
+    const fetchDesignations = async () => {
+      try {
+        setLoadingDesignations(true);
+        setDesignationError("");
+
+        const response = await getDesignations();
+
+        console.log("Designation API Response:", response);
+
+        let designationList = [];
+
+        if (Array.isArray(response)) {
+          designationList = response;
+        } else if (Array.isArray(response?.results)) {
+          designationList = response.results;
+        } else if (Array.isArray(response?.data)) {
+          designationList = response.data;
+        }
+
+        setDesignations(designationList);
+      } catch (error) {
+        console.error("Failed to fetch designations:", error);
+
+        console.error("Designation API Error:", error.response?.data);
+
+        setDesignationError("Unable to load designations.");
+
+        setDesignations([]);
+      } finally {
+        setLoadingDesignations(false);
+      }
+    };
+
+    fetchDesignations();
+  }, []);
+
+  // =====================================================
+  // HANDLE CHANGE
+  // =====================================================
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -40,6 +87,10 @@ const AddEmployee = () => {
       [name]: "",
     }));
   };
+
+  // =====================================================
+  // VALIDATION
+  // =====================================================
 
   const validateForm = () => {
     const newErrors = {};
@@ -60,7 +111,7 @@ const AddEmployee = () => {
       newErrors.phone_number = "Phone number must be exactly 10 digits.";
     }
 
-    if (!formData.designation.trim()) {
+    if (!formData.designation) {
       newErrors.designation = "Designation is required.";
     }
 
@@ -68,6 +119,10 @@ const AddEmployee = () => {
 
     return Object.keys(newErrors).length === 0;
   };
+
+  // =====================================================
+  // SUBMIT EMPLOYEE
+  // =====================================================
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -83,7 +138,9 @@ const AddEmployee = () => {
         name: formData.name.trim(),
         email: formData.email.trim(),
         phone_number: formData.phone_number.trim(),
-        designation: formData.designation.trim(),
+
+        // Send designation ID
+        designation: Number(formData.designation),
       };
 
       console.log("Create Employee Request:", employeeData);
@@ -92,27 +149,14 @@ const AddEmployee = () => {
 
       console.log("Create Employee Response:", response);
 
-      /*
-       * Expected backend response:
-       *
-       * {
-       *     employee_id: "EMP001",
-       *     temporary_password: "Abc@1234"
-       * }
-       */
-
       setEmployeeCredentials({
         employee_id: response.employee_id,
         temporary_password: response.temporary_password,
       });
 
-      // Open credentials modal
       setIsModalOpen(true);
-
-      // Reset copy state
       setCopied(false);
 
-      // Clear form
       setFormData({
         name: "",
         email: "",
@@ -139,6 +183,10 @@ const AddEmployee = () => {
     }
   };
 
+  // =====================================================
+  // RESET
+  // =====================================================
+
   const handleReset = () => {
     setFormData({
       name: "",
@@ -150,7 +198,10 @@ const AddEmployee = () => {
     setErrors({});
   };
 
-  // Copy credentials
+  // =====================================================
+  // COPY CREDENTIALS
+  // =====================================================
+
   const handleCopy = async () => {
     const credentials = `Employee ID: ${employeeCredentials.employee_id}
 Temporary Password: ${employeeCredentials.temporary_password}`;
@@ -170,7 +221,10 @@ Temporary Password: ${employeeCredentials.temporary_password}`;
     }
   };
 
-  // Download credentials
+  // =====================================================
+  // DOWNLOAD CREDENTIALS
+  // =====================================================
+
   const handleDownload = () => {
     const credentials = `Employee Credentials
 ======================
@@ -189,6 +243,7 @@ Temporary Password: ${employeeCredentials.temporary_password}
     const link = document.createElement("a");
 
     link.href = url;
+
     link.download = `employee-${employeeCredentials.employee_id}-credentials.txt`;
 
     document.body.appendChild(link);
@@ -202,12 +257,9 @@ Temporary Password: ${employeeCredentials.temporary_password}
 
   return (
     <>
-      {/* ================================
-                ADD EMPLOYEE PAGE
-            ================================= */}
-
       <div className="p-6">
-        {/* Page Header */}
+        {/* PAGE HEADER */}
+
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Add Employee</h1>
 
@@ -228,58 +280,152 @@ Temporary Password: ${employeeCredentials.temporary_password}
               </h3>
 
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                {/* Name */}
-                <Input
-                  label="Name"
-                  name="name"
-                  type="text"
-                  placeholder="Enter employee name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  error={errors.name}
-                  required
-                />
+                {/* NAME */}
 
-                {/* Email */}
-                <Input
-                  label="Email"
-                  name="email"
-                  type="email"
-                  placeholder="Enter employee email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  error={errors.email}
-                  required
-                />
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                    Name
+                    <span className="ml-1 text-ettm-red">*</span>
+                  </label>
 
-                {/* Phone */}
-                <Input
-                  label="Phone Number"
-                  name="phone_number"
-                  type="tel"
-                  placeholder="Enter 10-digit phone number"
-                  value={formData.phone_number}
-                  onChange={handleChange}
-                  error={errors.phone_number}
-                  maxLength={10}
-                  required
-                />
+                  <input
+                    type="text"
+                    name="name"
+                    placeholder="Enter employee name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    className={`w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition ${
+                      errors.name
+                        ? "border-ettm-red focus:border-ettm-red"
+                        : "border-gray-300 focus:border-ettm-blue"
+                    }`}
+                  />
 
-                {/* Designation */}
-                <Input
-                  label="Designation"
-                  name="designation"
-                  type="text"
-                  placeholder="Enter employee designation"
-                  value={formData.designation}
-                  onChange={handleChange}
-                  error={errors.designation}
-                  required
-                />
+                  {errors.name && (
+                    <p className="mt-1 text-xs text-ettm-red">{errors.name}</p>
+                  )}
+                </div>
+
+                {/* EMAIL */}
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                    Email
+                    <span className="ml-1 text-ettm-red">*</span>
+                  </label>
+
+                  <input
+                    type="email"
+                    name="email"
+                    placeholder="Enter employee email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    className={`w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition ${
+                      errors.email
+                        ? "border-ettm-red"
+                        : "border-gray-300 focus:border-ettm-blue"
+                    }`}
+                  />
+
+                  {errors.email && (
+                    <p className="mt-1 text-xs text-ettm-red">{errors.email}</p>
+                  )}
+                </div>
+
+                {/* PHONE NUMBER */}
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                    Phone Number
+                    <span className="ml-1 text-ettm-red">*</span>
+                  </label>
+
+                  <input
+                    type="tel"
+                    name="phone_number"
+                    placeholder="Enter 10-digit phone number"
+                    value={formData.phone_number}
+                    onChange={handleChange}
+                    maxLength={10}
+                    className={`w-full rounded-lg border px-3 py-2.5 text-sm outline-none transition ${
+                      errors.phone_number
+                        ? "border-ettm-red"
+                        : "border-gray-300 focus:border-ettm-blue"
+                    }`}
+                  />
+
+                  {errors.phone_number && (
+                    <p className="mt-1 text-xs text-ettm-red">
+                      {errors.phone_number}
+                    </p>
+                  )}
+                </div>
+
+                {/* DESIGNATION */}
+
+                <div>
+                  <label
+                    htmlFor="designation"
+                    className="mb-1.5 block text-sm font-medium text-gray-700"
+                  >
+                    Designation
+                    <span className="ml-1 text-ettm-red">*</span>
+                  </label>
+
+                  <select
+                    id="designation"
+                    name="designation"
+                    value={formData.designation}
+                    onChange={handleChange}
+                    disabled={loadingDesignations}
+                    className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-gray-900 outline-none transition ${
+                      errors.designation
+                        ? "border-ettm-red focus:border-ettm-red"
+                        : "border-gray-300 focus:border-ettm-blue"
+                    } ${
+                      loadingDesignations
+                        ? "cursor-not-allowed bg-gray-100"
+                        : ""
+                    }`}
+                  >
+                    <option value="">
+                      {loadingDesignations
+                        ? "Loading designations..."
+                        : "Select Designation"}
+                    </option>
+
+                    {designations.map((designation) => (
+                      <option key={designation.id} value={designation.id}>
+                        {designation.title}
+                      </option>
+                    ))}
+                  </select>
+
+                  {errors.designation && (
+                    <p className="mt-1 text-xs text-ettm-red">
+                      {errors.designation}
+                    </p>
+                  )}
+
+                  {designationError && (
+                    <p className="mt-1 text-xs text-red-500">
+                      {designationError}
+                    </p>
+                  )}
+
+                  {!loadingDesignations &&
+                    !designationError &&
+                    designations.length === 0 && (
+                      <p className="mt-1 text-xs text-gray-500">
+                        No designations available.
+                      </p>
+                    )}
+                </div>
               </div>
             </div>
 
-            {/* Buttons */}
+            {/* BUTTONS */}
+
             <div className="flex flex-col-reverse gap-3 border-t border-gray-100 pt-6 sm:flex-row sm:justify-end">
               <Button
                 type="button"
@@ -296,6 +442,7 @@ Temporary Password: ${employeeCredentials.temporary_password}
                 variant="primary"
                 size="medium"
                 loading={loading}
+                disabled={loading || loadingDesignations}
               >
                 Add Employee
               </Button>
@@ -304,9 +451,7 @@ Temporary Password: ${employeeCredentials.temporary_password}
         </Card>
       </div>
 
-      {/* ================================
-                EMPLOYEE CREDENTIALS MODAL
-            ================================= */}
+      {/* CREDENTIALS MODAL */}
 
       <Modal
         isOpen={isModalOpen}
@@ -314,7 +459,6 @@ Temporary Password: ${employeeCredentials.temporary_password}
         title="Employee Created Successfully"
         size="medium"
       >
-        {/* Success message */}
         <div className="mb-5 rounded-lg border border-green-200 bg-green-50 p-4">
           <p className="text-sm font-medium text-green-700">
             Employee account has been created successfully.
@@ -326,7 +470,8 @@ Temporary Password: ${employeeCredentials.temporary_password}
           employee.
         </p>
 
-        {/* Employee ID */}
+        {/* EMPLOYEE ID */}
+
         <div className="mb-4">
           <label className="mb-2 block text-sm font-medium text-gray-700">
             Employee ID
@@ -339,7 +484,8 @@ Temporary Password: ${employeeCredentials.temporary_password}
           </div>
         </div>
 
-        {/* Temporary Password */}
+        {/* TEMPORARY PASSWORD */}
+
         <div className="mb-6">
           <label className="mb-2 block text-sm font-medium text-gray-700">
             Temporary Password
@@ -352,7 +498,8 @@ Temporary Password: ${employeeCredentials.temporary_password}
           </div>
         </div>
 
-        {/* Security warning */}
+        {/* SECURITY WARNING */}
+
         <div className="mb-6 rounded-lg border border-yellow-200 bg-yellow-50 p-3">
           <p className="text-xs leading-5 text-yellow-800">
             Please share these credentials securely with the employee. The
@@ -361,7 +508,8 @@ Temporary Password: ${employeeCredentials.temporary_password}
           </p>
         </div>
 
-        {/* Actions */}
+        {/* ACTIONS */}
+
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
           <Button
             type="button"

@@ -263,7 +263,7 @@ const Employees = () => {
     {
       key: "designation",
       label: "Designation",
-      render: (row) => row.designation || "-",
+      render: (row) => row.designation_title || "-",
     },
     {
       key: "created_at",

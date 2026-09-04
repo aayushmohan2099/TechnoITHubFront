@@ -456,7 +456,7 @@ const Tasks = () => {
 
                           <p className="mt-1 text-xs text-gray-500">
                             {employee.employee_id} •{" "}
-                            {employee.designation || "-"}
+                            {employee.designation_title || "-"}
                           </p>
                         </div>
 
@@ -525,7 +525,7 @@ const Tasks = () => {
                 </button>
               </div>
 
-              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-4">
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
                   <p className="text-xs text-gray-400">Name</p>
 
@@ -543,18 +543,10 @@ const Tasks = () => {
                 </div>
 
                 <div>
-                  <p className="text-xs text-gray-400">User ID</p>
-
-                  <p className="mt-1 text-sm font-semibold text-gray-800">
-                    {selectedEmployee.user_id}
-                  </p>
-                </div>
-
-                <div>
                   <p className="text-xs text-gray-400">Designation</p>
 
                   <p className="mt-1 text-sm font-semibold text-gray-800">
-                    {selectedEmployee.designation || "-"}
+                    {selectedEmployee.designation_title || "-"}
                   </p>
                 </div>
               </div>

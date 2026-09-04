@@ -17,6 +17,15 @@ export const createEmployee = async (employeeData) => {
   return response.data;
 };
 
+//--------------------------------
+// Get Employee Designation
+//--------------------------------
+export const getDesignations = async () => {
+  const response = await axiosInstance.get("api/v1/employees/designations/");
+
+  return response.data;
+};
+
 // ===============================
 // GET ALL EMPLOYEES
 // ===============================

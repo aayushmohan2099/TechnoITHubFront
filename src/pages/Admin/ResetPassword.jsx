@@ -347,7 +347,9 @@ Please ask the employee to change the temporary password after logging in.
 
                         <span>•</span>
 
-                        <span>{employee.designation || "General Staff"}</span>
+                        <span>
+                          {employee.designation_title || "General Staff"}
+                        </span>
                       </div>
                     </div>
                   </div>

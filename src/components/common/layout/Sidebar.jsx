@@ -15,7 +15,7 @@ import {
 const Sidebar = ({ role = "admin" }) => {
   const userData = JSON.parse(localStorage.getItem("user_data") || "{}");
 
-  const designation = userData?.designation || "";
+  const designation = userData?.designation_title || "";
 
   const adminMenuItems = [
     {

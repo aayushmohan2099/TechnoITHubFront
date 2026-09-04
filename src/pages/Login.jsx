@@ -192,10 +192,16 @@ const Login = () => {
         response?.role || response?.user?.role || formData.role || "",
       ).toLowerCase();
 
-      const designation =
-        response?.designation ||
-        response?.user?.designation ||
-        response?.data?.designation ||
+      const designationId =
+        response?.designation_id ||
+        response?.user?.designation_id ||
+        response?.data?.designation_id ||
+        "";
+
+      const designationTitle =
+        response?.designation_title ||
+        response?.user?.designation_title ||
+        response?.data?.designation_title ||
         "";
 
       if (!["admin", "employee"].includes(userRole)) {
@@ -245,7 +251,7 @@ const Login = () => {
 
       const safeProfilePicture =
         profilePictureFromResponse &&
-        !profilePictureFromResponse.includes("66.116.207.88")
+        !profilePictureFromResponse.includes("66.116.207.88:1450")
           ? profilePictureFromResponse
           : previousUser?.profile_picture || "";
 
@@ -259,7 +265,9 @@ const Login = () => {
 
         role: userRole,
 
-        designation: designation,
+        designation_id: designationId,
+
+        designation_title: designationTitle,
 
         profile_picture: safeProfilePicture,
 
@@ -277,8 +285,6 @@ const Login = () => {
 
       localStorage.setItem("role", userRole);
       // localStorage.setItem("designation", userRole);
-
-      localStorage.setItem("designation", designation);
 
       localStorage.setItem(
         "must_change_password",
