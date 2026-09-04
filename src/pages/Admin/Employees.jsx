@@ -6,6 +6,7 @@ import {
   getAllEmployees,
   updateEmployee,
   deleteEmployee,
+  getDesignations,
 } from "../../api/employeeApi";
 
 const Employees = () => {
@@ -23,6 +24,12 @@ const Employees = () => {
   const [search, setSearch] = useState("");
 
   // --------------------------------------------------
+  // Designations
+  // --------------------------------------------------
+  const [designations, setDesignations] = useState([]);
+  const [loadingDesignations, setLoadingDesignations] = useState(false);
+
+  // --------------------------------------------------
   // Edit Employee
   // --------------------------------------------------
   const [selectedEmployee, setSelectedEmployee] = useState(null);
@@ -35,7 +42,6 @@ const Employees = () => {
   });
 
   const [updating, setUpdating] = useState(false);
-
   const [updateError, setUpdateError] = useState("");
 
   // --------------------------------------------------
@@ -111,11 +117,55 @@ const Employees = () => {
   };
 
   // --------------------------------------------------
+  // Fetch Designations
+  // --------------------------------------------------
+  const fetchDesignations = async () => {
+    try {
+      setLoadingDesignations(true);
+
+      const response = await getDesignations();
+
+      console.log("Get Designations Response:", response);
+
+      if (Array.isArray(response)) {
+        setDesignations(response);
+        return;
+      }
+
+      if (Array.isArray(response?.results)) {
+        setDesignations(response.results);
+        return;
+      }
+
+      if (Array.isArray(response?.data)) {
+        setDesignations(response.data);
+        return;
+      }
+
+      setDesignations([]);
+    } catch (error) {
+      console.error("Get Designations Failed:", error);
+      console.error("Response:", error.response?.data);
+
+      setDesignations([]);
+    } finally {
+      setLoadingDesignations(false);
+    }
+  };
+
+  // --------------------------------------------------
   // Fetch whenever page/search changes
   // --------------------------------------------------
   useEffect(() => {
     fetchEmployees();
   }, [page, search]);
+
+  // --------------------------------------------------
+  // Fetch designations once
+  // --------------------------------------------------
+  useEffect(() => {
+    fetchDesignations();
+  }, []);
 
   // --------------------------------------------------
   // Search Change
@@ -145,6 +195,9 @@ const Employees = () => {
       name: employee.name || "",
       email: employee.email || "",
       phone_number: employee.phone_number || "",
+
+      // Keep designation ID in the form.
+      // Dropdown will automatically display its title.
       designation: employee.designation || "",
     });
 
@@ -173,11 +226,27 @@ const Employees = () => {
       return;
     }
 
+    if (!editForm.designation) {
+      setUpdateError("Please select a designation.");
+      return;
+    }
+
     try {
       setUpdating(true);
       setUpdateError("");
 
-      const response = await updateEmployee(selectedEmployee.user_id, editForm);
+      const payload = {
+        name: editForm.name.trim(),
+        email: editForm.email.trim(),
+        phone_number: editForm.phone_number.trim(),
+
+        // Backend receives designation ID
+        designation: Number(editForm.designation),
+      };
+
+      console.log("Update Employee Payload:", payload);
+
+      const response = await updateEmployee(selectedEmployee.user_id, payload);
 
       console.log("Update Employee Response:", response);
 
@@ -189,12 +258,21 @@ const Employees = () => {
 
       console.error("Response:", error.response?.data);
 
-      setUpdateError(
-        error.response?.data?.message ||
-          error.response?.data?.detail ||
-          error.response?.data?.error ||
-          "Unable to update employee.",
-      );
+      const backendError = error.response?.data;
+
+      if (typeof backendError === "string") {
+        setUpdateError(backendError);
+      } else if (backendError?.detail) {
+        setUpdateError(
+          Array.isArray(backendError.detail)
+            ? backendError.detail[0]
+            : backendError.detail,
+        );
+      } else if (backendError) {
+        setUpdateError(Object.values(backendError).flat().join(" "));
+      } else {
+        setUpdateError("Unable to update employee.");
+      }
     } finally {
       setUpdating(false);
     }
@@ -263,6 +341,8 @@ const Employees = () => {
     {
       key: "designation",
       label: "Designation",
+
+      // Show designation title, not ID
       render: (row) => row.designation_title || "-",
     },
     {
@@ -379,7 +459,7 @@ const Employees = () => {
         )}
       </div>
 
-      {/* Employee Table Section (Card removed, direct clean container) */}
+      {/* Employee Table */}
       <div className="w-full rounded-2xl border border-gray-200 bg-white shadow-xs overflow-hidden">
         <div className="border-b border-gray-200 px-6 py-4 bg-gray-50/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
@@ -398,6 +478,7 @@ const Employees = () => {
         {loading ? (
           <div className="px-5 py-12 text-center">
             <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-ettm-blue" />
+
             <p className="mt-3 text-sm text-gray-500 font-medium">
               Loading employees...
             </p>
@@ -440,7 +521,6 @@ const Employees = () => {
                 </div>
 
                 <div className="flex gap-2">
-                  {/* Previous */}
                   <button
                     type="button"
                     disabled={!previousPage || loading || page <= 1}
@@ -452,12 +532,10 @@ const Employees = () => {
                     Previous
                   </button>
 
-                  {/* Current Page */}
                   <div className="flex min-w-10 items-center justify-center rounded-xl bg-ettm-blue px-4 py-2 text-xs font-bold text-white shadow-xs">
                     {page}
                   </div>
 
-                  {/* Next */}
                   <button
                     type="button"
                     disabled={!nextPage || loading || page >= totalPages}
@@ -490,6 +568,7 @@ const Employees = () => {
             )}
 
             <div className="mt-5 space-y-4">
+              {/* Name */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">
                   Name
@@ -504,6 +583,7 @@ const Employees = () => {
                 />
               </div>
 
+              {/* Email */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">
                   Email
@@ -518,6 +598,7 @@ const Employees = () => {
                 />
               </div>
 
+              {/* Phone Number */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">
                   Phone Number
@@ -532,21 +613,35 @@ const Employees = () => {
                 />
               </div>
 
+              {/* Designation Dropdown */}
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">
                   Designation
                 </label>
 
-                <input
-                  type="text"
+                <select
                   name="designation"
                   value={editForm.designation}
                   onChange={handleEditChange}
-                  className="w-full rounded-xl border border-gray-300 px-4 py-2.5 text-sm outline-none transition focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
-                />
+                  disabled={loadingDesignations}
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20 disabled:cursor-not-allowed disabled:bg-gray-100"
+                >
+                  <option value="">
+                    {loadingDesignations
+                      ? "Loading designations..."
+                      : "Select Designation"}
+                  </option>
+
+                  {designations.map((designation) => (
+                    <option key={designation.id} value={designation.id}>
+                      {designation.title}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
+            {/* Buttons */}
             <div className="mt-6 flex justify-end gap-3">
               <button
                 type="button"
@@ -562,7 +657,9 @@ const Employees = () => {
 
               <button
                 type="button"
-                disabled={updating}
+                disabled={
+                  updating || loadingDesignations || !editForm.designation
+                }
                 onClick={handleUpdateEmployee}
                 className="rounded-xl bg-ettm-blue px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
