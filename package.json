@@ -15,7 +15,9 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
-    "axios": "^1.19.0",
+    "axios": "^1.20.0",
+    "electron-log": "^5.4.4",
+    "electron-updater": "^6.8.9",
     "lucide-react": "^1.37.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -42,17 +44,20 @@
   "build": {
     "appId": "com.technoithub.ettm",
     "productName": "ETTM",
-    "artifactName": "${productName}-Setup-${version}.${ext}",
-    "asar": true,
     "directories": {
-      "output": "installer-output2"
+      "output": "release-new1"
     },
     "files": [
       "dist/**/*",
       "electron/**/*",
       "package.json"
     ],
+    "publish": {
+      "provider": "generic",
+      "url": "http://66.116.207.88/media/builds/latest/"
+    },
     "win": {
+      "artifactName": "ETTM_v${version}.${ext}",
       "target": [
         {
           "target": "nsis",

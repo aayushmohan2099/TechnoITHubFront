@@ -61,3 +61,5 @@ build/
 *.njsproj
 *.sln
 *.sw?
+
+release-new1/

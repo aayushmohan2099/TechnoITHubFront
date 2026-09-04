@@ -1,11 +1,18 @@
 const {
     app,
-    BrowserWindow,
-    nativeImage,
-    Menu,
+     BrowserWindow,
+     nativeImage,
+     Menu,
+     ipcMain, // Added
 } = require("electron");
 
 const path = require("path");
+const { autoUpdater } = require("electron-updater"); // Added
+const log = require("electron-log"); // Optional: for logging
+
+// Auto-updater logging
+autoUpdater.logger = log;
+autoUpdater.logger.transports.file.level = "info";
 
 function createWindow() {
     const iconPath = path.join(
@@ -13,8 +20,7 @@ function createWindow() {
         "../src/assets/logo.png"
     );
 
-    const appIcon =
-        nativeImage.createFromPath(iconPath);
+    const appIcon = nativeImage.createFromPath(iconPath);
 
     if (appIcon.isEmpty()) {
         console.error(
@@ -28,26 +34,17 @@ function createWindow() {
         height: 900,
         minWidth: 1000,
         minHeight: 700,
-
-        // Window and Windows taskbar icon
         icon: appIcon,
-
-        // Hide File / Edit / View / Window menu bar
         autoHideMenuBar: true,
-
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
+            preload: path.join(__dirname, "preload.js"), // Preload script added
         },
     });
 
-    // Remove application menu completely
     Menu.setApplicationMenu(null);
-
-    // Hide menu bar
     win.setMenuBarVisibility(false);
-
-    // Remove menu from this window
     win.setMenu(null);
 
     if (!app.isPackaged) {
@@ -60,7 +57,33 @@ function createWindow() {
             )
         );
     }
+
+    // ==========================================
+    // Auto-Updater Events
+    // ==========================================
+    win.once("ready-to-show", () => {
+        if (app.isPackaged) {
+            autoUpdater.checkForUpdatesAndNotify();
+        }
+    });
+
+    autoUpdater.on("update-available", () => {
+        win.webContents.send("update_available");
+    });
+
+    autoUpdater.on("download-progress", (progressObj) => {
+        win.webContents.send("download_progress", progressObj.percent);
+    });
+
+    autoUpdater.on("update-downloaded", () => {
+        win.webContents.send("update_downloaded");
+    });
 }
+
+// User jab UI se restart button dabaye
+ipcMain.on("restart_to_update", () => {
+    autoUpdater.quitAndInstall();
+});
 
 app.whenReady().then(() => {
     if (process.platform === "win32") {
