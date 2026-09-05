@@ -5,6 +5,11 @@ import Login from "./pages/Login";
 import AppBackground from "./pages/AppBackground";
 
 // ===============================
+// UPDATE PAGE
+// ===============================
+import Update from "./pages/Update";
+
+// ===============================
 // ADMIN
 // ===============================
 import AdminLayout from "./pages/layouts/AdminLayout";
@@ -30,6 +35,26 @@ import UpSdcTracking from "./pages/Employee/UpSdcTracking";
 import DeploymentBotHealth from "./pages/Employee/DeploymentBotHealth";
 
 function App() {
+  // =========================================
+  // CHECK IF ELECTRON OPENED UPDATE MODE
+  // =========================================
+
+  const params = new URLSearchParams(window.location.search);
+
+  const isUpdateMode = params.get("mode") === "update";
+
+  // =========================================
+  // SHOW ONLY UPDATE PAGE
+  // =========================================
+
+  if (isUpdateMode) {
+    return <Update />;
+  }
+
+  // =========================================
+  // NORMAL APPLICATION
+  // =========================================
+
   return (
     <AppBackground>
       <Routes>
