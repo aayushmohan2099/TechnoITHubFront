@@ -77,7 +77,7 @@
       "shortcutName": "ETTM",
       "installerIcon": "electron/icon.ico",
       "uninstallerIcon": "electron/icon.ico",
-      "runAfterFinish": true
+      "runAfterFinish": false
     }
   }
 }

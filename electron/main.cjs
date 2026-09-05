@@ -309,15 +309,25 @@ async function checkForUpdates() {
     //
     // ==================================================
     else {
-      const normalizedPath = data.download_url.startsWith("media/")
-        ? data.download_url
-        : `media/${data.download_url}`;
+      let normalizedPath = data.download_url.trim();
 
-      downloadUrl = new URL(
-        normalizedPath,
+      // Accept all of these backend formats:
+      // /media/builds/.../ETTM_v1.0.1.exe
+      // media/builds/.../ETTM_v1.0.1.exe
+      // builds/.../ETTM_v1.0.1.exe
+      if (normalizedPath.startsWith("/media/")) {
+        // already correct
+      } else if (normalizedPath.startsWith("media/")) {
+        normalizedPath = `/${normalizedPath}`;
+      } else if (normalizedPath.startsWith("/builds/")) {
+        normalizedPath = `/media${normalizedPath}`;
+      } else if (normalizedPath.startsWith("builds/")) {
+        normalizedPath = `/media/${normalizedPath}`;
+      } else if (!normalizedPath.startsWith("/")) {
+        normalizedPath = `/${normalizedPath}`;
+      }
 
-        `${BACKEND_BASE_URL}/`,
-      ).toString();
+      downloadUrl = new URL(normalizedPath, `${BACKEND_BASE_URL}/`).toString();
     }
 
     console.log("Final Download URL:", downloadUrl);
@@ -593,172 +603,120 @@ function downloadUpdate(update) {
 }
 
 // ======================================================
-// INSTALL UPDATE
+// INSTALL UPDATE - DIRECT NSIS UPDATE + AUTO RELAUNCH
 // ======================================================
 //
-// FLOW:
-//
-// Current ETTM
-//      ↓
-// Download completes
-//      ↓
-// PowerShell helper starts
-//      ↓
-// Current ETTM closes
-//      ↓
-// PowerShell waits for ETTM to close
-//      ↓
-// NSIS installer starts
-//      ↓
-// New version installs
-//      ↓
-// runAfterFinish = true
-//      ↓
-// Updated ETTM opens
+// Flow:
+// 1. Download is already complete.
+// 2. Start the electron-builder NSIS installer directly.
+// 3. Pass --updated, /S and --force-run.
+// 4. After the installer process successfully starts,
+//    close the old ETTM.
+// 5. NSIS installs the new version silently.
+// 6. --force-run launches the newly installed ETTM.
 //
 // ======================================================
 
 function installUpdate(installerPath) {
-  console.log("Starting update installer:", installerPath);
+  console.log("Starting automatic update:", installerPath);
 
   try {
-    // ==================================================
-    // VERIFY INSTALLER EXISTS
-    // ==================================================
-
     if (!fs.existsSync(installerPath)) {
       throw new Error("Installer file does not exist.");
     }
 
-    // ==================================================
-    // CURRENT ETTM PROCESS ID
-    // ==================================================
+    const updateLogPath = path.join(os.tmpdir(), "ettm-update.log");
 
-    const currentPid = process.pid;
-
-    console.log("Current ETTM PID:", currentPid);
-
-    // ==================================================
-    // ESCAPE INSTALLER PATH
-    // ==================================================
-
-    const escapedInstallerPath = installerPath.replace(
-      /'/g,
-
-      "''",
-    );
-
-    // ==================================================
-    // POWERSHELL HELPER
-    // ==================================================
-    //
-    // PowerShell survives after Electron quits.
-    //
-    // It waits for the old ETTM process to disappear,
-    // then starts the NSIS installer.
-    //
-    // ==================================================
-
-    const script = `
-$oldPid = ${currentPid}
-$installerPath = '${escapedInstallerPath}'
-
-while (Get-Process -Id $oldPid -ErrorAction SilentlyContinue) {
-    Start-Sleep -Milliseconds 300
-}
-
-if (!(Test-Path $installerPath)) {
-    exit 1
-}
-
-Start-Process -FilePath $installerPath
-`;
-
-    // ==================================================
-    // START DETACHED POWERSHELL
-    // ==================================================
-
-    const updaterProcess = spawn(
-      "powershell.exe",
-
+    fs.writeFileSync(
+      updateLogPath,
       [
-        "-NoProfile",
-
-        "-ExecutionPolicy",
-
-        "Bypass",
-
-        "-WindowStyle",
-
-        "Hidden",
-
-        "-Command",
-
-        script,
-      ],
-
-      {
-        detached: true,
-
-        stdio: "ignore",
-
-        windowsHide: true,
-      },
+        "Updater started from Electron",
+        `Old version: ${app.getVersion()}`,
+        `Old PID: ${process.pid}`,
+        `Old EXE: ${process.execPath}`,
+        `Installer: ${installerPath}`,
+        "Mode: direct NSIS",
+        "",
+      ].join("\n"),
+      "utf8",
     );
 
-    // ==================================================
-    // POWERSHELL ERROR
-    // ==================================================
+    console.log("Current version:", app.getVersion());
+    console.log("Current EXE:", process.execPath);
+    console.log("Update installer:", installerPath);
+    console.log("Updater log:", updateLogPath);
 
-    updaterProcess.on(
-      "error",
+    // These are the same core arguments used by electron-builder's
+    // NSIS updater for a silent update that should relaunch the app.
+    const installerArgs = ["--updated", "/S", "--force-run"];
 
-      (error) => {
-        console.error(
-          "Updater helper failed:",
+    fs.appendFileSync(
+      updateLogPath,
+      `Starting installer with args: ${installerArgs.join(" ")}\n`,
+      "utf8",
+    );
 
-          error,
+    const installerProcess = spawn(installerPath, installerArgs, {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    });
+
+    let appQuitScheduled = false;
+
+    // "spawn" means Windows successfully created the installer process.
+    installerProcess.once("spawn", () => {
+      fs.appendFileSync(
+        updateLogPath,
+        `Installer process started. PID: ${installerProcess.pid || "unknown"}\n`,
+        "utf8",
+      );
+
+      console.log("Installer process started:", installerProcess.pid);
+
+      installerProcess.unref();
+
+      if (!appQuitScheduled) {
+        appQuitScheduled = true;
+
+        setTimeout(() => {
+          try {
+            fs.appendFileSync(updateLogPath, "Closing old ETTM now.\n", "utf8");
+          } catch (_) {}
+
+          console.log("Closing old ETTM...");
+          app.quit();
+        }, 1200);
+      }
+    });
+
+    // If the installer cannot even be started, keep the old app open
+    // and show the error instead of quitting into a broken state.
+    installerProcess.once("error", (error) => {
+      console.error("Unable to start updater:", error);
+
+      try {
+        fs.appendFileSync(
+          updateLogPath,
+          `Unable to start installer: ${error.code || ""} ${error.message}\n`,
+          "utf8",
         );
-      },
-    );
+      } catch (_) {}
 
-    // ==================================================
-    // LET POWERSHELL CONTINUE AFTER ETTM CLOSES
-    // ==================================================
-
-    updaterProcess.unref();
-
-    console.log("Updater helper started.");
-
-    // ==================================================
-    // CLOSE CURRENT / OLD ETTM
-    // ==================================================
-
-    setTimeout(
-      () => {
-        console.log("Closing old ETTM...");
-
-        app.quit();
-      },
-
-      500,
-    );
+      if (updateWindow && !updateWindow.isDestroyed()) {
+        updateWindow.webContents.send(
+          "update-error",
+          error.message || "Unable to start update installer.",
+        );
+      }
+    });
   } catch (error) {
-    console.error(
-      "Unable to start installer:",
-
-      error,
-    );
-
-    // ==================================================
-    // SEND INSTALL ERROR TO UPDATE PAGE
-    // ==================================================
+    console.error("Unable to install update:", error);
 
     if (updateWindow && !updateWindow.isDestroyed()) {
       updateWindow.webContents.send(
         "update-error",
-
-        error.message || "Unable to start update installer.",
+        error.message || "Unable to install update.",
       );
     }
   }
@@ -878,6 +836,18 @@ app.whenReady().then(async () => {
   // ==================================================
 
   console.log("Production mode.");
+
+  // Keep a tiny startup trace so we can verify which version actually launched.
+  try {
+    const startupLogPath = path.join(os.tmpdir(), "ettm-startup.log");
+    fs.appendFileSync(
+      startupLogPath,
+      `[${new Date().toISOString()}] version=${app.getVersion()} exe=${process.execPath}\n`,
+      "utf8",
+    );
+  } catch (error) {
+    console.error("Unable to write startup log:", error);
+  }
 
   console.log("Installed ETTM version:", app.getVersion());
 
