@@ -10,7 +10,7 @@ const Table = ({
 }) => {
   return (
     <div
-      className={`w-full overflow-hidden rounded-xl border border-gray-200 bg-white ${className}`}
+      className={`w-full overflow-hidden border border-gray-200 bg-white ${className}`}
     >
       <div className="w-full overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">

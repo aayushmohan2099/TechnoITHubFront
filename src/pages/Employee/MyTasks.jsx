@@ -7,7 +7,7 @@ const MyTasks = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Backend pagination
+  // Pagination
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [nextPage, setNextPage] = useState(null);
@@ -16,19 +16,27 @@ const MyTasks = () => {
   // Selected task
   const [selectedTask, setSelectedTask] = useState(null);
 
-  // Progress update form
+  // Progress form
   const [updateText, setUpdateText] = useState("");
-
   const [progressPercent, setProgressPercent] = useState("");
-
   const [updating, setUpdating] = useState(false);
-
   const [updateError, setUpdateError] = useState("");
-
   const [updateSuccess, setUpdateSuccess] = useState("");
 
-  // Prevent duplicate progress-update requests
   const updatingRef = useRef(false);
+
+  // Get current/highest progress from daily_updates
+  const getCurrentProgress = (task) => {
+    if (!task?.daily_updates?.length) {
+      return 0;
+    }
+
+    return Math.max(
+      ...task.daily_updates.map(
+        (update) => Number(update.progress_percent) || 0,
+      ),
+    );
+  };
 
   const extractTasks = (response) => {
     if (Array.isArray(response)) {
@@ -94,7 +102,6 @@ const MyTasks = () => {
     }
   }, []);
 
-  // Load whenever the page changes
   useEffect(() => {
     fetchMyTasks(page);
   }, [page, fetchMyTasks]);
@@ -178,7 +185,6 @@ const MyTasks = () => {
   const handleTaskUpdate = async (event) => {
     event.preventDefault();
 
-    // Prevent duplicate API requests
     if (updatingRef.current) {
       return;
     }
@@ -201,10 +207,26 @@ const MyTasks = () => {
       return;
     }
 
-    const progress = Number(progressPercent);
+    // Percentage entered by employee
+    const progressToAdd = Number(progressPercent);
 
-    if (Number.isNaN(progress) || progress < 0 || progress > 100) {
-      setUpdateError("Progress percentage must be between 0 and 100.");
+    if (Number.isNaN(progressToAdd) || progressToAdd <= 0) {
+      setUpdateError("Progress percentage must be greater than 0.");
+      return;
+    }
+
+    // Previous/current progress
+    const currentProgress = getCurrentProgress(selectedTask);
+
+    // Add new progress to current progress
+    const newProgress = currentProgress + progressToAdd;
+
+    if (newProgress > 100) {
+      setUpdateError(
+        `Current progress is ${currentProgress}%. You can add maximum ${
+          100 - currentProgress
+        }%.`,
+      );
       return;
     }
 
@@ -214,21 +236,36 @@ const MyTasks = () => {
 
       const payload = {
         update_text: updateText.trim(),
-        progress_percent: progress,
+
+        // Send cumulative progress
+        progress_percent: newProgress,
       };
 
+      console.log("Current Progress:", currentProgress);
+      console.log("Progress Added:", progressToAdd);
+      console.log("New Progress:", newProgress);
       console.log("Task Update Payload:", payload);
 
       const response = await updateTaskProgress(selectedTask.id, payload);
 
       console.log("Task Update Response:", response);
 
-      setUpdateSuccess("Task progress updated successfully!");
+      // Immediately add returned update to selected task
+      // so modal also shows the new progress
+      setSelectedTask((previous) => ({
+        ...previous,
+        status: response?.task_status || previous.status,
+        daily_updates: [...(previous?.daily_updates || []), response],
+      }));
+
+      setUpdateSuccess(
+        `Task progress updated successfully to ${newProgress}%.`,
+      );
 
       setUpdateText("");
       setProgressPercent("");
 
-      // Reload the current page
+      // Reload tasks from backend
       await fetchMyTasks(page);
     } catch (error) {
       console.error("Task Progress Update Error:", error);
@@ -260,10 +297,14 @@ const MyTasks = () => {
     }
   };
 
-  const progressBarWidth = Math.min(
-    100,
-    Math.max(0, Number(progressPercent) || 0),
-  );
+  // Current progress of selected task
+  const currentProgress = selectedTask ? getCurrentProgress(selectedTask) : 0;
+
+  // Additional progress entered by employee
+  const progressToAdd = Math.max(0, Number(progressPercent) || 0);
+
+  // Preview final cumulative progress
+  const newProgress = Math.min(100, currentProgress + progressToAdd);
 
   return (
     <div className="min-h-full bg-gray-50 p-6">
@@ -302,7 +343,6 @@ const MyTasks = () => {
           <p className="mt-3 text-sm text-gray-500">Loading your tasks...</p>
         </div>
       ) : tasks.length === 0 ? (
-        /* No tasks */
         <div className="rounded-xl border border-gray-200 bg-white py-16 text-center shadow-sm">
           <p className="text-lg font-semibold text-gray-700">
             No tasks assigned
@@ -315,151 +355,143 @@ const MyTasks = () => {
       ) : (
         /* Task list */
         <div className="space-y-5">
-          {tasks.map((task) => (
-            <div
-              key={task.id}
-              className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm"
-            >
-              {/* Task heading */}
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p className="text-xs text-gray-400">Task #{task.id}</p>
+          {tasks.map((task) => {
+            const taskProgress = getCurrentProgress(task);
 
-                  <h2 className="mt-1 text-lg font-semibold text-gray-800">
-                    {task.title || "Untitled Task"}
-                  </h2>
+            return (
+              <div
+                key={task.id}
+                className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm"
+              >
+                {/* Task heading */}
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-xs text-gray-400">Task #{task.id}</p>
+
+                    <h2 className="mt-1 text-lg font-semibold text-gray-800">
+                      {task.title || "Untitled Task"}
+                    </h2>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClass(
+                        task.status,
+                      )}`}
+                    >
+                      {task.status || "Unknown"}
+                    </span>
+
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${priorityClass(
+                        task.priority,
+                      )}`}
+                    >
+                      {task.priority || "No Priority"}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClass(
-                      task.status,
-                    )}`}
-                  >
-                    {task.status || "Unknown"}
-                  </span>
-
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${priorityClass(
-                      task.priority,
-                    )}`}
-                  >
-                    {task.priority || "No Priority"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Description */}
-              <div className="mt-5">
-                <p className="text-xs font-medium text-gray-400">Description</p>
-
-                <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-gray-700">
-                  {task.description || "-"}
-                </p>
-              </div>
-
-              {/* Task information */}
-              <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                <div>
-                  <p className="text-xs text-gray-400">Assigned To</p>
-
-                  <p className="mt-1 text-sm font-semibold text-gray-800">
-                    {task.assigned_to_name || "-"}
+                {/* Description */}
+                <div className="mt-5">
+                  <p className="text-xs font-medium text-gray-400">
+                    Description
                   </p>
 
-                  <p className="mt-1 text-xs text-gray-500">
-                    {task.assigned_to_emp_id || "-"}
+                  <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-gray-700">
+                    {task.description || "-"}
                   </p>
                 </div>
 
-                <div>
-                  <p className="text-xs text-gray-400">Start Date</p>
+                {/* Task information */}
+                <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                  <div>
+                    <p className="text-xs text-gray-400">Assigned To</p>
 
-                  <p className="mt-1 text-sm font-semibold text-gray-800">
-                    {formatDate(task.start_date)}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-xs text-gray-400">Deadline</p>
-
-                  <p className="mt-1 text-sm font-semibold text-gray-800">
-                    {formatDate(task.deadline)}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-xs text-gray-400">Created By</p>
-
-                  <p className="mt-1 text-sm font-semibold text-gray-800">
-                    {task.created_by_name || "-"}
-                  </p>
-                </div>
-              </div>
-
-              {/* Progress history */}
-              {Array.isArray(task.daily_updates) &&
-                task.daily_updates.length > 0 && (
-                  <div className="mt-6 border-t border-gray-100 pt-5">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                      Latest Progress
+                    <p className="mt-1 text-sm font-semibold text-gray-800">
+                      {task.assigned_to_name || "-"}
                     </p>
 
-                    {(() => {
-                      const latestUpdate =
-                        task.daily_updates[task.daily_updates.length - 1];
+                    <p className="mt-1 text-xs text-gray-500">
+                      {task.assigned_to_emp_id || "-"}
+                    </p>
+                  </div>
 
-                      const latestProgress = Math.min(
-                        100,
-                        Math.max(
-                          0,
-                          Number(latestUpdate?.progress_percent || 0),
-                        ),
-                      );
+                  <div>
+                    <p className="text-xs text-gray-400">Start Date</p>
 
-                      return (
-                        <div className="mt-3 rounded-lg bg-gray-50 p-4">
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm text-gray-700">
-                              {latestUpdate?.update_text || "No update text"}
-                            </p>
+                    <p className="mt-1 text-sm font-semibold text-gray-800">
+                      {formatDate(task.start_date)}
+                    </p>
+                  </div>
 
-                            <span className="text-sm font-semibold text-ettm-blue">
-                              {latestProgress}%
-                            </span>
-                          </div>
+                  <div>
+                    <p className="text-xs text-gray-400">Deadline</p>
 
-                          <div className="mt-3 h-2 overflow-hidden rounded-full bg-gray-200">
-                            <div
-                              className="h-full rounded-full bg-ettm-blue"
-                              style={{
-                                width: `${latestProgress}%`,
-                              }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })()}
+                    <p className="mt-1 text-sm font-semibold text-gray-800">
+                      {formatDate(task.deadline)}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-gray-400">Created By</p>
+
+                    <p className="mt-1 text-sm font-semibold text-gray-800">
+                      {task.created_by_name || "-"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Current progress */}
+                {task.daily_updates?.length > 0 && (
+                  <div className="mt-6 border-t border-gray-100 pt-5">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+                      Current Progress
+                    </p>
+
+                    <div className="mt-3 rounded-lg bg-gray-50 p-4">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">
+                          Task Progress
+                        </span>
+
+                        <span className="text-sm font-semibold text-ettm-blue">
+                          {taskProgress}%
+                        </span>
+                      </div>
+
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-gray-200">
+                        <div
+                          className="h-full rounded-full bg-ettm-blue"
+                          style={{
+                            width: `${taskProgress}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
                   </div>
                 )}
 
-              {/* Action */}
-              <div className="mt-6 flex justify-end border-t border-gray-100 pt-5">
-                <button
-                  type="button"
-                  onClick={() => openProgressModal(task)}
-                  disabled={
-                    String(task.status || "").toLowerCase() === "completed"
-                  }
-                  className="rounded-lg bg-ettm-blue px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {String(task.status || "").toLowerCase() === "completed"
-                    ? "Task Completed"
-                    : "Update Progress"}
-                </button>
+                {/* Action */}
+                <div className="mt-6 flex justify-end border-t border-gray-100 pt-5">
+                  <button
+                    type="button"
+                    onClick={() => openProgressModal(task)}
+                    disabled={
+                      String(task.status || "").toLowerCase() === "completed" ||
+                      taskProgress >= 100
+                    }
+                    className="rounded-lg bg-ettm-blue px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {String(task.status || "").toLowerCase() === "completed" ||
+                    taskProgress >= 100
+                      ? "Task Completed"
+                      : "Update Progress"}
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -506,7 +538,8 @@ const MyTasks = () => {
         </div>
       )}
 
-      {/* Update progress modal */}
+      {/* Update Progress Modal */}
+      {/* Update Progress Modal */}
       {selectedTask && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
@@ -516,7 +549,7 @@ const MyTasks = () => {
             className="w-full max-w-lg rounded-xl bg-white shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
-            {/* Modal heading */}
+            {/* Header */}
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
               <div>
                 <h2 className="text-lg font-semibold text-gray-800">
@@ -539,20 +572,51 @@ const MyTasks = () => {
             </div>
 
             <form onSubmit={handleTaskUpdate} className="p-6">
-              {/* Task information */}
-              <div className="mb-5 rounded-lg bg-gray-50 p-4">
-                <p className="text-xs text-gray-400">Task</p>
+              {/* Task */}
+              <div className="mb-5">
+                <p className="text-xs font-medium text-gray-400">Task</p>
 
-                <p className="mt-1 text-sm font-semibold text-gray-800">
+                <p className="mt-1 font-semibold text-gray-800">
                   {selectedTask.title}
                 </p>
 
-                <p className="mt-1 text-xs leading-5 text-gray-500">
+                <p className="mt-1 text-sm text-gray-500">
                   {selectedTask.description || "-"}
                 </p>
               </div>
 
-              {/* Update text */}
+              {/* Progress Summary */}
+              <div className="mb-5 rounded-lg bg-gray-50 p-4">
+                <p className="mb-3 text-sm font-medium text-gray-700">
+                  Progress
+                </p>
+
+                <div className="flex items-center gap-3">
+                  <span className="font-semibold text-gray-700">
+                    {currentProgress}%
+                  </span>
+
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-gray-200">
+                    <div
+                      className="h-full bg-ettm-blue transition-all"
+                      style={{
+                        width: `${newProgress}%`,
+                      }}
+                    />
+                  </div>
+
+                  <span className="font-semibold text-ettm-blue">
+                    {newProgress}%
+                  </span>
+                </div>
+
+                <div className="mt-2 flex justify-between text-xs text-gray-400">
+                  <span>Current</span>
+                  <span>After Update</span>
+                </div>
+              </div>
+
+              {/* Progress Update */}
               <div className="mb-5">
                 <label
                   htmlFor="update_text"
@@ -570,76 +634,65 @@ const MyTasks = () => {
                     setUpdateError("");
                     setUpdateSuccess("");
                   }}
-                  placeholder="Example: Completed 50% of the UI layout work."
-                  className="w-full resize-none rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
+                  placeholder="Enter your work update"
+                  className="w-full resize-none rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
                 />
               </div>
 
-              {/* Progress percentage */}
+              {/* Add Progress */}
               <div className="mb-5">
                 <label
                   htmlFor="progress_percent"
                   className="mb-2 block text-sm font-medium text-gray-700"
                 >
-                  Progress Percentage <span className="text-red-500">*</span>
+                  Add Progress (%) <span className="text-red-500">*</span>
                 </label>
 
                 <input
                   id="progress_percent"
                   type="number"
-                  min="0"
-                  max="100"
+                  min="1"
+                  max={100 - currentProgress}
                   value={progressPercent}
                   onChange={(event) => {
                     setProgressPercent(event.target.value);
                     setUpdateError("");
                     setUpdateSuccess("");
                   }}
-                  placeholder="Enter progress from 0 to 100"
-                  className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
+                  placeholder={`Maximum ${100 - currentProgress}%`}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-3 text-sm outline-none focus:border-ettm-blue focus:ring-2 focus:ring-ettm-blue/20"
                 />
-
-                <div className="mt-3 h-2 overflow-hidden rounded-full bg-gray-200">
-                  <div
-                    className="h-full bg-ettm-blue transition-all"
-                    style={{
-                      width: `${progressBarWidth}%`,
-                    }}
-                  />
-                </div>
-
-                <p className="mt-2 text-right text-xs font-medium text-gray-500">
-                  {progressBarWidth}%
-                </p>
               </div>
 
+              {/* Success */}
               {updateSuccess && (
-                <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-700">
+                <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
                   {updateSuccess}
                 </div>
               )}
 
+              {/* Error */}
               {updateError && (
                 <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                   {updateError}
                 </div>
               )}
 
-              {/* Modal actions */}
-              <div className="flex justify-end gap-3">
+              {/* Buttons */}
+              <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
                 <button
                   type="button"
                   onClick={closeProgressModal}
                   disabled={updating}
-                  className="rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-lg border border-gray-300 px-5 py-2.5 text-sm font-medium text-gray-700 disabled:opacity-50"
                 >
                   Cancel
                 </button>
 
                 <button
                   type="submit"
-                  disabled={updating}
-                  className="rounded-lg bg-ettm-blue px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={updating || currentProgress >= 100}
+                  className="rounded-lg bg-ettm-blue px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50"
                 >
                   {updating ? "Updating..." : "Submit Progress"}
                 </button>
